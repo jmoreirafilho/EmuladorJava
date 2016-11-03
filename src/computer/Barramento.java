@@ -8,17 +8,17 @@ public class Barramento {
 
 	public int largura, frequencia;
 	
-	// (origem, destino, ação)
+	// (origem, ação, endereço)
 	ArrayList<int[]> fila_controle = new ArrayList<int[]>();
 	int contador_leitura_controle = 0;
 	int contador_escrita_controle = 0;
 	
-	// (destino, endereco)
+	// (origem, endereco)
 	ArrayList<int[]> fila_endereco = new ArrayList<int[]>();
 	int contador_leitura_endereco = 0;
 	int contador_escrita_endereco = 0;
 
-	// (origem, comando, param1, param2, param3)
+	// (origem, endereco, (comando|valor), param1, param2, param3, flag de lida ou nao) (ES -> RAM)
 	ArrayList<int[]> fila_dado = new ArrayList<int[]>();
 	int contador_leitura_dado = 0;
 	int contador_escrita_dado = 0;
@@ -39,8 +39,8 @@ public class Barramento {
 	 * 
 	 * @param sinal_controle
 	 */
-	public void adicionaFilaControle(int posicao, int[] sinal_controle) {
-		this.fila_controle.add(posicao, sinal_controle);
+	public void adicionaFilaControle(int[] sinal_controle) {
+		this.fila_controle.add(sinal_controle);
 		this.somaContador("controle", "E");
 	}
 	
@@ -49,9 +49,8 @@ public class Barramento {
 	 * 
 	 * @param sinal_endereco
 	 */
-	public void adicionaFilaEndereco(int posicao, int destino, int endereco) {
-		int[] sinal = {destino, endereco};
-		this.fila_endereco.add(posicao, sinal);
+	public void adicionaFilaEndereco(int[] sinal_endereco) {
+		this.fila_endereco.add(sinal_endereco);
 		this.somaContador("endereco", "E");
 	}
 	
@@ -60,11 +59,8 @@ public class Barramento {
 	 * 
 	 * @param sinal_dado
 	 */
-	public void adicionaFilaDado(int posicao, int[] sinal_dado) {
-		for (int i = 0; i < sinal_dado.length; i++) {
-			System.out.println(posicao+" -> "+sinal_dado[i]);
-		}
-		this.fila_dado.add(posicao, sinal_dado);
+	public void adicionaFilaDado(int[] sinal_dado) {
+		this.fila_dado.add(sinal_dado);
 		this.somaContador("dado", "E");
 		Modulo.cpu.avancaCi();
 	}

@@ -32,6 +32,8 @@ public class EntradaSaida implements Runnable {
 	public ArrayList<int[]> instrucoes_convertidas = new ArrayList<int[]>();
 	private BufferedReader leitor;
 	
+	private final int NUMERO_DESSE_MODULO = 1;
+	
 	
 	/**
 	 * Ler o arquivo e preenche a lista de instruções.
@@ -65,9 +67,10 @@ public class EntradaSaida implements Runnable {
 	@Override
 	public void run() {
 		
-		int instrucao_atual = 0;
-		
-		int[] sinal_controle = {1, 2};
+		int contador_instrucoes_enviadas = 0;
+
+		// origem, ação, endereço
+		int[] sinal_controle = {NUMERO_DESSE_MODULO, 0, -1};
 		
 		while(true) {
 			try {
@@ -75,26 +78,46 @@ public class EntradaSaida implements Runnable {
 			} catch (InterruptedException e) {
 				e.printStackTrace();
 			}
-
-			int posicao_controle = Modulo.barramento.contador_escrita_controle;
-			if(this.instrucoes_convertidas.size() > posicao_controle && posicao_controle == instrucao_atual) {
-				Modulo.barramento.adicionaFilaControle(posicao_controle, sinal_controle);
-//				System.out.println("ES: gravou controle");
+			
+			// Adiciona sinal de controle na fila do barramento
+			Modulo.barramento.adicionaFilaControle(sinal_controle);
+			
+			// Incrementa o contador de instruções local
+			contador_instrucoes_enviadas++;
+			
+			
+			
+			int[] fila_endereco;
+			if(Modulo.barramento.fila_endereco.size() > 0) {
+				fila_endereco = Modulo.barramento.fila_endereco.get(0);
+			} else {
+				fila_endereco = new int[0];
+			}
+			int posicao = Modulo.cpu.CI;
+			if(fila_endereco.length > 0 && fila_endereco[0] == 1){ // Se tiver um sinal de endereço para a ES
+				// Consome o sinal de endereço lido
+				Modulo.barramento.fila_endereco.remove(0);
+				
+				// Pega o endereco
+				int endereco = fila_endereco[1];
+				
+				// Pega o comando em buffer, de acordo com o CI da CPU
+				int[] sinal_dado = this.buffer(posicao);
+				
+				// Adiciona o destino e o endereço na fila de dado local
+				sinal_dado[0] = NUMERO_DESSE_MODULO;
+				sinal_dado[1] = endereco;
+				
+				// Adiciona na fila de dado do barramento
+				Modulo.barramento.adicionaFilaDado(sinal_dado);
 			}
 			
-			if (Modulo.barramento.fila_endereco.size() > instrucao_atual && Modulo.barramento.fila_endereco.get(instrucao_atual).length > 0 && Modulo.barramento.fila_endereco.get(instrucao_atual)[0] == 1) {
-				int[] instrucao = this.buffer(Modulo.cpu.CI);
-				if(instrucao == null){
-//					System.out.println("Acabaram os comandos!");
-					break;
-				}
-				
-				instrucao[0] = 1;
-
-//				System.out.println("ES: gravou dado");
-				Modulo.barramento.adicionaFilaDado(instrucao_atual, instrucao);
-				instrucao_atual++;
+			// Se o CI ler a última instrução, mata a thread de entrada e saida
+			if(Modulo.cpu.CI >= this.instrucoes_convertidas.size()){
+				thread.interrupt();
+				break;
 			}
+			
 		}
 	}
 	
@@ -162,7 +185,7 @@ public class EntradaSaida implements Runnable {
 		if(valor1 == null || valor2 == null){
 			return null;
 		}
-		int[] valores = {-1, 1, valor1, valor2, -1};
+		int[] valores = {-1, -1, 1, valor1, valor2, -1, 0};
 		return valores;
 	}
 	
@@ -172,7 +195,7 @@ public class EntradaSaida implements Runnable {
 		if(valor1 == null || valor2 == null){
 			return null;
 		}
-		int[] valores = {-1, 2, valor1, valor2, -1};
+		int[] valores = {-1, -1, 2, valor1, valor2, -1, 0};
 		return valores;
 	}
 	
@@ -183,7 +206,7 @@ public class EntradaSaida implements Runnable {
 		if(valor1 == null || valor2 == null || valor3 == null){
 			return null;
 		}
-		int[] valores = {-1, 3, valor1, valor2, valor3};
+		int[] valores = {-1, -1, 3, valor1, valor2, valor3, 0};
 		return valores;
 	}
 	
@@ -192,7 +215,7 @@ public class EntradaSaida implements Runnable {
 		if(valor1 == null){
 			return null;
 		}
-		int[] valores = {-1, 4, valor1, -1, -1};
+		int[] valores = {-1, -1, 4, valor1, -1, -1, 0};
 		return valores;
 	}
 	
