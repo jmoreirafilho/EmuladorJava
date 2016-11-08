@@ -18,6 +18,9 @@ public class Modulo {
 		entrada_saida = new EntradaSaida();
 		cpu = new Cpu();
 		
+		Thread b = new Thread(barramento);
+		b.start();
+		
 		if(entrada_saida.compilaArquivo()){
 			Thread e = new Thread(entrada_saida);
 			e.start();
@@ -28,6 +31,5 @@ public class Modulo {
 		
 		Thread c = new Thread(cpu);
 		c.start();
-		
 	}
 }

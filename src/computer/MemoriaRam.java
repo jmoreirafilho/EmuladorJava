@@ -1,5 +1,6 @@
 package computer;
 
+import java.awt.font.NumericShaper;
 import java.util.ArrayList;
 
 import main.Modulo;
@@ -10,6 +11,16 @@ public class MemoriaRam implements Runnable{
 	public int[] memoria;
 	
 	private final int NUMERO_DESSE_MODULO = 2;
+
+	private boolean pode_mandar_endereco_pra_es = false;
+	private boolean pode_mandar_endereco_pra_cpu = false;
+	private boolean pode_mandar_dado_pra_cpu = false;
+	
+	private int[] controle_es;
+	private int[] controle_cpu;
+	
+	private int[] sinal_endereco = {NUMERO_DESSE_MODULO, -1, -1};
+	private int[] sinal_dado;
 	
 	public MemoriaRam(int tamanho) {
 		this.tamanho = tamanho;
@@ -63,70 +74,66 @@ public class MemoriaRam implements Runnable{
 				e.printStackTrace();
 			}
 			
-			// verifica o sinal de controle no barramento
-			int[] sinal_controle;
-			
-			if(Modulo.barramento.fila_controle.size() > 0){
-				sinal_controle = Modulo.barramento.fila_controle.get(0);
-			} else {
-				sinal_controle = new int[0];
+			// Manda Endereco
+			if (this.pode_mandar_endereco_pra_es) { // manda endereco pra ES
+				int endereco = this.pegaPosicaoDisponivel();
+				
+				int[] sinal_endereco_es = {NUMERO_DESSE_MODULO, 1, endereco};
+				
+				Modulo.barramento.adicionaFilaEndereco(sinal_endereco_es);
+				
+				this.pode_mandar_endereco_pra_es = false;
 			}
 			
-			if(sinal_controle.length > 0){
-				if (sinal_controle[1] == 0) { // GRAVAÇÃO
-					int[] sinal_de_endereco = new int[2];
-					if (sinal_controle[0] == 1) { // Veio da EntradaSaida (primeira metade da memória)
+			int[] instrucao = new int[4];			
+			if (this.pode_mandar_endereco_pra_cpu) { // manda endereco pra cpu
+				int[] sinal_endereco_cpu = {NUMERO_DESSE_MODULO, 3, this.controle_cpu[2]};
 
-						int endereco_da_memoria = this.pegaPosicaoDisponivel();
-						sinal_de_endereco[0] = sinal_controle[0];
-						sinal_de_endereco[1] = endereco_da_memoria;
-						
-					} else { // Veio da CPU (segunda metade da memória) 
-						
-						sinal_de_endereco[0] = sinal_controle[0];
-						sinal_de_endereco[1] = sinal_controle[2];
-						
+				// Grava sinal de endereco
+				Modulo.barramento.adicionaFilaEndereco(sinal_endereco_cpu);
+
+				// Prepara sinal de dado, se necessário
+				if (this.controle_cpu[2] == 0 && this.pode_mandar_dado_pra_cpu) { // CPU lendo
+					int posicao = this.controle_cpu[2];
+					if (this.controle_cpu[2] < this.memoria.length/2) { // manda endereco de instrucao
+						// Prepara sinal de dado, sendo uma instrucao.
+						instrucao[0] = this.memoria[posicao];
+						instrucao[1] = this.memoria[posicao + 1];
+						instrucao[2] = this.memoria[posicao + 2];
+						instrucao[3] = this.memoria[posicao + 3];
+					} else { // Manda endereco de memoria
+						// Prepara sinal de dado, sendo um valor
+						instrucao[0] = -1;
+						instrucao[1] = this.memoria[posicao];
+						instrucao[2] = -1;
+						instrucao[3] = -1;
 					}
-					
-					Modulo.barramento.adicionaFilaEndereco(sinal_de_endereco);
-				} else { // LEITURA (veio da CPU)
-					int[] sinal_de_endereco = {sinal_controle[0], sinal_controle[2]};
-					int[] sinal_de_dado = {NUMERO_DESSE_MODULO, sinal_controle[2], this.memoria[sinal_controle[2]], -1, -1, -1, 0};
-					
-					Modulo.barramento.adicionaFilaEndereco(sinal_de_endereco);
-					Modulo.barramento.adicionaFilaDado(sinal_de_dado);
 				}
-				
-				// Consome o sinal de controle
-				Modulo.barramento.fila_controle.remove(0);
-				
+				this.pode_mandar_endereco_pra_cpu = false;
 			}
 			
-			
-			// Verifica o sinal de dado no barramento
-			int[] sinal_dado;
-			
-			if(Modulo.barramento.fila_dado.size() > 0){
-				sinal_dado = Modulo.barramento.fila_dado.get(0);
-			} else {
-				sinal_dado = new int[0];
+			if (this.pode_mandar_dado_pra_cpu) {
+				Modulo.barramento.adicionaFilaDado(instrucao);
+				this.pode_mandar_dado_pra_cpu = false;
 			}
-			
-			if (sinal_dado.length > 0 && sinal_dado[0] != NUMERO_DESSE_MODULO && sinal_dado[6] == 0) {
-				
-				if(sinal_dado[0] == 1) { // Veio da ES
-					// Grava no início da memória RAM
-					this.adicionaNoComecoDaMemoria(sinal_dado[1], sinal_dado);
-				} else { // Veio da CPU
-					// Grava na segunda metade da memória RAM
-					this.adicionaNoFinalDaMemoria(sinal_dado[1], sinal_dado[2]);
-				}
-				
-				// Seta a flag para "lido"
-				Modulo.barramento.fila_dado.get(0)[6] = 1;
-				
-			}
-			
+
 		}
+	}
+
+	public void recebeControle(int[] sinal_controle) {
+		if (sinal_controle[0] == 1) { // Veio da ES
+			this.pode_mandar_endereco_pra_es = true;
+			this.controle_es = sinal_controle;
+		} else { // veio da cpu
+			this.pode_mandar_endereco_pra_cpu = true;
+			if (sinal_controle[2] == 1) { // Leitura
+				this.pode_mandar_dado_pra_cpu = true;
+			}
+			this.controle_cpu = sinal_controle;
+		}
+	}
+
+	public void recebeDado(int[] sinal_dado) {
+		
 	}
 }

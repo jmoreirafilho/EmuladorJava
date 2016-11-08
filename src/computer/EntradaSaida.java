@@ -14,7 +14,8 @@ import main.Modulo;
  * @author Airton
  *
  * Dicionario -------
- *  1 -> ADD   || ES
+ *  0 -> Sinal de Leitura
+ *  1 -> ADD   || ES   || Sinal de Gravação
  *  2 -> MOV   || RAM
  *  3 -> IMUL  || CPU
  *  4 -> INC
@@ -27,24 +28,27 @@ import main.Modulo;
  *
  */
 public class EntradaSaida implements Runnable {
-	public Thread thread;
-	public ArrayList<String> instrucoes_informadas = new ArrayList<String>();
-	public ArrayList<int[]> instrucoes_convertidas = new ArrayList<int[]>();
+	private ArrayList<int[]> instrucoes_convertidas = new ArrayList<int[]>();
 	private BufferedReader leitor;
 	
 	private final int NUMERO_DESSE_MODULO = 1;
+	private int contador_de_instrucoes = 0;
 	
+	private int enderecoAtual;
+	private boolean pode_mandar_sinal_de_controle = true;
+	private boolean pode_mandar_sinal_de_dado = false;
 	
 	/**
-	 * Ler o arquivo e preenche a lista de instruções.
-	 * Chama o método para validar e converter as instruções
+	 * Lê o arquivo e preenche a lista de instruções convertidas.
+	 * 
+	 * @return TRUE caso não hajam erros com nenhuma intrução, FALSE caso contrário.
 	 */
 	public boolean compilaArquivo() {
 		// Lê o arquivo e passa para a lista de instruções
 		String caminho = "C:\\Users\\Airton\\workspace\\Emulador\\src\\main\\asm.txt";
+		int linha = 1;
 		try {
 			leitor = new BufferedReader(new FileReader(caminho));
-			int linha = 1;
 			while (leitor.ready()) {
 				// Valida a sintaxe de cada instrução
 				if(!this.analisadorSintatico(leitor.readLine().toLowerCase())){
@@ -67,10 +71,10 @@ public class EntradaSaida implements Runnable {
 	@Override
 	public void run() {
 		
-		int contador_instrucoes_enviadas = 0;
+		int contador_de_instrucoes_enviadas = 0;
 
 		// origem, ação, endereço
-		int[] sinal_controle = {NUMERO_DESSE_MODULO, 0, -1};
+		int[] sinal_controle = {NUMERO_DESSE_MODULO, 2, 0, -1};
 		
 		while(true) {
 			try {
@@ -79,48 +83,43 @@ public class EntradaSaida implements Runnable {
 				e.printStackTrace();
 			}
 			
-			// Adiciona sinal de controle na fila do barramento
-			Modulo.barramento.adicionaFilaControle(sinal_controle);
-			
-			// Incrementa o contador de instruções local
-			contador_instrucoes_enviadas++;
-			
-			
-			
-			int[] fila_endereco;
-			if(Modulo.barramento.fila_endereco.size() > 0) {
-				fila_endereco = Modulo.barramento.fila_endereco.get(0);
-			} else {
-				fila_endereco = new int[0];
+			if (this.pode_mandar_sinal_de_controle) {
+				Modulo.barramento.adicionaFilaControle(sinal_controle);
+				this.pode_mandar_sinal_de_controle = false;
 			}
-			int posicao = Modulo.cpu.CI;
-			if(fila_endereco.length > 0 && fila_endereco[0] == 1){ // Se tiver um sinal de endereço para a ES
-				// Consome o sinal de endereço lido
-				Modulo.barramento.fila_endereco.remove(0);
-				
-				// Pega o endereco
-				int endereco = fila_endereco[1];
-				
+			
+			if (this.pode_mandar_sinal_de_dado) {
 				// Pega o comando em buffer, de acordo com o CI da CPU
-				int[] sinal_dado = this.buffer(posicao);
+				int[] sinal_dado = this.buffer(contador_de_instrucoes_enviadas);
 				
 				// Adiciona o destino e o endereço na fila de dado local
 				sinal_dado[0] = NUMERO_DESSE_MODULO;
-				sinal_dado[1] = endereco;
+				sinal_dado[1] = this.enderecoAtual;
 				
 				// Adiciona na fila de dado do barramento
 				Modulo.barramento.adicionaFilaDado(sinal_dado);
+				
+				contador_de_instrucoes_enviadas++;
+				this.pode_mandar_sinal_de_controle = true;
+				this.pode_mandar_sinal_de_dado = false;
 			}
 			
-			// Se o CI ler a última instrução, mata a thread de entrada e saida
-			if(Modulo.cpu.CI >= this.instrucoes_convertidas.size()){
-				thread.interrupt();
+			// Se o contador de instrucoes enviadas ler a última instrução, mata a thread de entrada e saida
+			if(this.contador_de_instrucoes  >= this.instrucoes_convertidas.size()){
+				System.out.println("Thread ES acabou!");
+				Thread.interrupted();
 				break;
 			}
 			
 		}
 	}
 	
+	/**
+	 * Busca a instrução compilada na posição parametrizada.
+	 * 
+	 * @param contador_instrucao
+	 * @return Instrução compilada.
+	 */
 	public int[] buffer(int contador_instrucao) {
 		if(contador_instrucao > instrucoes_convertidas.size()){
 			return null;
@@ -128,6 +127,12 @@ public class EntradaSaida implements Runnable {
 		return instrucoes_convertidas.get(contador_instrucao);
 	}
 	
+	/**
+	 * Analisa se há algum erro na instrução parametrizada e, caso não haja, adiciona a intrução na fila de intruções convertidas.
+	 * 
+	 * @param comando
+	 * @return TRUE caso a instrução for adicionada na fila de instruções convetidas, FALSE se houver algum erro na instrução.
+	 */
 	public boolean analisadorSintatico(String comando) {
 		Matcher acerto_add = Pattern.compile("^add\\s+(\\w+)\\s*,\\s*(\\w+)\\s*$").matcher(comando);
 		Matcher acerto_imul = Pattern.compile("^imul\\s+(\\w+)\\s*,\\s*(\\w+)\\s*,\\s*(\\w+)\\s*$").matcher(comando);
@@ -153,11 +158,15 @@ public class EntradaSaida implements Runnable {
 		return false;
 	}
 
+	/**
+	 * Converte o valor parametrizado de String para um int representando esse valor.
+	 * 
+	 * @param valor
+	 * @return Valor convertido em inteiro ou NULL caso o valor não seja válido.
+	 */
 	public Integer converteValor(String valor) {
 		if(valor.length() > 2 && (valor.substring(0, 2)).equals("0x")){
-//			System.out.println(Modulo.memoria_ram.tamanho);
 			if(Long.parseLong(valor.replace("0x", ""), 16) > Modulo.memoria_ram.tamanho){
-//				System.out.println("Valor informador maior que o parametrizado!");
 				return null;
 			}
 			// +6 = pula para o primeiro valor depois do 5, para quando multiplicar por -1
@@ -179,26 +188,44 @@ public class EntradaSaida implements Runnable {
 		return null;
 	}
 	
+	/**
+	 * Converte instrução ADD para números representativos.
+	 * 
+	 * @param acerto
+	 * @return Vetor de inteiros caso ou NULL caso haja erro na transformação de algum valor.
+	 */
 	private int[] converteComandoAdd(Matcher acerto) {
 		Integer valor1 = this.converteValor(acerto.group(1));
 		Integer valor2 = this.converteValor(acerto.group(2));
 		if(valor1 == null || valor2 == null){
 			return null;
 		}
-		int[] valores = {-1, -1, 1, valor1, valor2, -1, 0};
+		int[] valores = {-1, -1, 1, valor1, valor2, -1, 2};
 		return valores;
 	}
 	
+	/**
+	 * Converte instrução MOV para números representativos.
+	 * 
+	 * @param acerto
+	 * @return Vetor de inteiros caso ou NULL caso haja erro na transformação de algum valor.
+	 */
 	private int[] converteComandoMov(Matcher acerto) {
 		Integer valor1 = this.converteValor(acerto.group(1));
 		Integer valor2 = this.converteValor(acerto.group(2));
 		if(valor1 == null || valor2 == null){
 			return null;
 		}
-		int[] valores = {-1, -1, 2, valor1, valor2, -1, 0};
+		int[] valores = {-1, -1, 2, valor1, valor2, -1, 2};
 		return valores;
 	}
 	
+	/**
+	 * Converte instrução IMUL para números representativos.
+	 * 
+	 * @param acerto
+	 * @return Vetor de inteiros caso ou NULL caso haja erro na transformação de algum valor.
+	 */
 	private int[] converteComandoImul(Matcher acerto) {
 		Integer valor1 = this.converteValor(acerto.group(1));
 		Integer valor2 = this.converteValor(acerto.group(2));
@@ -206,18 +233,33 @@ public class EntradaSaida implements Runnable {
 		if(valor1 == null || valor2 == null || valor3 == null){
 			return null;
 		}
-		int[] valores = {-1, -1, 3, valor1, valor2, valor3, 0};
+		int[] valores = {-1, -1, 3, valor1, valor2, valor3, 2};
 		return valores;
 	}
 	
+	/**
+	 * Converte instrução INC para números representativos.
+	 * 
+	 * @param acerto
+	 * @return Vetor de inteiros caso ou NULL caso haja erro na transformação de algum valor.
+	 */
 	private int[] converteComandoInc(Matcher acerto) {
 		Integer valor1 = this.converteValor(acerto.group(1));
 		if(valor1 == null){
 			return null;
 		}
-		int[] valores = {-1, -1, 4, valor1, -1, -1, 0};
+		int[] valores = {-1, -1, 4, valor1, -1, -1, 2};
 		return valores;
 	}
-	
+
+	/**
+	 * Recebe um sinal de endereço e deve mandar um sinal de dado, pela Thread
+	 * 
+	 * @param sinal_controle
+	 */
+	public void recebeEndereco(int[] sinal_endereco) {
+		this.enderecoAtual = sinal_endereco[2];
+		this.pode_mandar_sinal_de_dado = true;
+	}
 	
 }
