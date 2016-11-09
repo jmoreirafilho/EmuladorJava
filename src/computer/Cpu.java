@@ -1,16 +1,22 @@
 package computer;
 
+import java.util.ArrayList;
+
 import main.Modulo;
 
 public class Cpu implements Runnable {
 	public int CI = 0;
 	private boolean pode_pedir_instrucao_da_ram = true;
 	private boolean pode_mandar_sinal_dado = false;
-	private boolean pode_processar_dado = false;
+	private boolean pode_processar_instrucao = false;
+	private boolean estou_esperando_valores = true;
+	private boolean estou_esperando_posicao_de_memoria = false;
 	
 	private int endereco_atual;
+	private int[] instrucao_atual;
+	ArrayList<Integer> valores = new ArrayList<Integer>();
 	
-	private int[] dado_atual;
+	private int posicao_da_memoria;
 	
 	private int registrador_a;
 	private int registrador_b;
@@ -28,56 +34,63 @@ public class Cpu implements Runnable {
 				e.printStackTrace();
 			}
 			
-			if (this.pode_pedir_instrucao_da_ram) {
-				// Manda sinal de controle para ler uma instrução da memoria RAM
-				int[] sinal_controle_leitura = {NUMERO_DESSE_MODULO, 2, 0, this.CI};
-				this.avancaCi();
-				
-				// Manda sinal de controle, pedindo instrução da RAM
-				Modulo.barramento.adicionaFilaControle(sinal_controle_leitura);
-				
-				// Define para não pedir outra instrução enquanto a atual nao tiver
-				// sido processada
-				this.pode_pedir_instrucao_da_ram = false;
+			// Processa uma instrução			
+			if (this.pode_processar_instrucao) {
+				this.pegaValoresDaInstrucao(this.instrucao_atual);
+				if (!this.estou_esperando_valores) {
+					this.processaInstrucao(this.instrucao_atual);
+				}
 			}
 			
-			if (this.pode_processar_dado) {
-
-				if (this.precisaPegarDadoNaRam()) {
-					// Manda sinal de leitura para pegar dado da ram
-					this.processaInstrucaoDependente();
-				} else { // Processa e termina
-					this.processaInstrucaoIndependente();	
-				}
-				
-				// Grava resultado na RAM
-				if (this.dado_atual[3] < -5) {
-					this.gravaResultadoNaRam();
-				} else if(this.dado_atual[3] < -1 && this.dado_atual[3] > -6) {
-					this.gravaResultadoNoRegistrador();
-				} else {
-					this.dado_foi_processado = true;
-				}
-
-				if (this.dado_foi_processado) {
-					// Define para pedir outra instrução da RAM no próximo loop
-					this.pode_pedir_instrucao_da_ram = true;	
-				}
-			}
+			// Pede Valor
+			
+			// Grava resultado
 			
 		}
 	}
 
-	/**
-	 * Verifica se o dado_atual precisa de algum valor que esteja na RAM
-	 * 
-	 * @return
-	 */
-	private boolean precisaPegarDadoNaRam() {
-		if (this.dado_atual[3] < -5 || this.dado_atual[4] < -5 || this.dado_atual[5] < -5) {
-			return true;
+	private void pegaValoresDaInstrucao(int[] instrucao_atual) {
+		for (int i = 3; i < 6; i++) { // Percorre os valores das instruçoes
+			if (instrucao_atual[i] != -1) { // Caso seja um valor não-nulo
+				if (instrucao_atual[i] < -1 && instrucao_atual[i] > -6) { // É um registrador
+					switch (instrucao_atual[i]) {
+					case -2: // A
+						this.valores.add(this.pegaRegistradorA());
+						break;
+					case -3: // B
+						this.valores.add(this.pegaRegistradorB());
+						break;
+					case -4: // C
+						this.valores.add(this.pegaRegistradorC());
+						break;
+					case -5: // D
+						this.valores.add(this.pegaRegistradorD());
+						break;
+					}
+				} else if (instrucao_atual[i] < -5) { // Posicao de memoria
+
+				} else { // Numero inteiro
+					
+				}
+			}
 		}
-		return false;
+	}
+
+	private void processaInstrucao(int[] instrucao_atual) {
+		switch (instrucao_atual[2]) {
+		case 1:
+			// Add
+			break;
+		case 2:
+			// Mov
+			break;
+		case 3:
+			// Imul
+			break;
+		case 4:
+			// Inc
+			break;
+		}
 	}
 
 	public int pegaRegistradorA() {
@@ -135,8 +148,12 @@ public class Cpu implements Runnable {
 	 * @param sinal_dado
 	 */
 	public void recebeDado(int[] sinal_dado) {
-		this.dado_atual = sinal_dado;
-		this.pode_processar_dado = true;
+		if (sinal_dado.length == 2) { // É um valor
+			this.valores.add(sinal_dado[1]);
+		} else { // É uma instrução
+			this.instrucao_atual = sinal_dado;
+		}
+		this.pode_processar_instrucao = true;
 	}
 
 }

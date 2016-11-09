@@ -113,7 +113,12 @@ public class MemoriaRam implements Runnable{
 			}
 			
 			if (this.pode_mandar_dado_pra_cpu) {
-				Modulo.barramento.adicionaFilaDado(instrucao);
+				if (instrucao[0] == -1) {
+					int[] sinal_dado_pra_cpu = {3, instrucao[1]};
+					Modulo.barramento.adicionaFilaDado(sinal_dado_pra_cpu);
+				} else {
+					Modulo.barramento.adicionaFilaDado(instrucao);
+				}
 				this.pode_mandar_dado_pra_cpu = false;
 			}
 

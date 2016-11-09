@@ -18,7 +18,9 @@ public class Barramento implements Runnable {
 	int contador_leitura_endereco = 0;
 	int contador_escrita_endereco = 0;
 
-	// (origem, endereco, (comando|valor), param1, param2, param3, destino)
+	// (origem, endereco, comando, param1, param2, param3, destino)
+	// ou
+	// (destino, valor)
 	ArrayList<int[]> fila_dado = new ArrayList<int[]>();
 	int contador_leitura_dado = 0;
 	int contador_escrita_dado = 0;
@@ -62,7 +64,6 @@ public class Barramento implements Runnable {
 	public void adicionaFilaDado(int[] sinal_dado) {
 		this.fila_dado.add(sinal_dado);
 		this.somaContador("dado", "E");
-		Modulo.cpu.avancaCi();
 	}
 
 	/**
@@ -160,7 +161,13 @@ public class Barramento implements Runnable {
 	private void verificaFilaDados() {
 		if (this.fila_dado.size() > 0) {
 			int[] sinal_dado = this.fila_dado.get(0);
-			switch (sinal_dado[1]) {
+			int destino;
+			if (sinal_dado.length == 2) { // é um valor que vai pra CPU
+				destino = sinal_dado[0];
+			} else {
+				destino = sinal_dado[6];
+			}
+			switch (destino) {
 			case 2:
 				Modulo.memoria_ram.recebeDado(sinal_dado);
 				break;
