@@ -103,7 +103,9 @@ public class MemoriaRam implements Runnable {
 					System.out.println("RAM: mandou sinal de endereco pra ES (" + endereco + ")");
 
 					int[] sinal_endereco_es = { NUMERO_DESSE_MODULO, 1, endereco };
-
+					
+					Modulo.barramento.ultima_posicao_inserida = endereco;
+					
 					Modulo.barramento.adicionaFilaEndereco(sinal_endereco_es);
 					this.primeiro_loop = false;
 				}

@@ -19,11 +19,12 @@ import main.Modulo;
  * 2 -> MOV || RAM 
  * 3 -> IMUL || CPU 
  * 4 -> INC 
+ * 5 -> DEC
  * -1 -> null 
  * -2 -> A
  * -3 -> B 
  * -4 -> C 
- * -5 -> D 
+ * -5 -> D
  * -6 -> Daqui pra menos ficam as posições de
  *         memória [ex: 0x004 = 4 => ((4 + 6) * -1) => -10]
  *
@@ -91,7 +92,8 @@ public class EntradaSaida implements Runnable {
 				}
 				this.pode_mandar_sinal_de_controle = false;
 			}
-
+			
+			int ultimo_endereco_utilizado = -1;
 			if (this.pode_mandar_sinal_de_dado) {
 				for (int j = 0; j < Modulo.barramento.largura_de_banda; j++) {
 					System.out.println("ES: mandou sinal de dado");
@@ -107,6 +109,7 @@ public class EntradaSaida implements Runnable {
 					Modulo.barramento.adicionaFilaDado(sinal_dado);
 
 					contador_de_instrucoes_enviadas++;
+					ultimo_endereco_utilizado = this.endereco_atual.get(0);
 					this.endereco_atual.remove(0);
 				}
 				this.pode_mandar_sinal_de_controle = true;
@@ -157,6 +160,7 @@ public class EntradaSaida implements Runnable {
 				"^mov\\s+(\\w+)\\s*,\\s*(\\w+)\\s*$").matcher(comando);
 		Matcher acerto_inc = Pattern.compile("^inc\\s+(\\w+)\\s*$").matcher(
 				comando);
+		Matcher acerto_dec = Pattern.compile("^dec\\s+(\\w+)\\s*$").matcher(comando);
 
 		int[] comando_convertido = null;
 
@@ -168,6 +172,8 @@ public class EntradaSaida implements Runnable {
 			comando_convertido = this.converteComandoMov(acerto_mov);
 		} else if (acerto_inc.matches()) {
 			comando_convertido = this.converteComandoInc(acerto_inc);
+		} else if (acerto_dec.matches()) {
+			comando_convertido = this.converteComandoDec(acerto_dec);
 		}
 
 		if (comando_convertido != null) {
@@ -214,8 +220,8 @@ public class EntradaSaida implements Runnable {
 	 * Converte instrução ADD para números representativos.
 	 * 
 	 * @param acerto
-	 * @return Vetor de inteiros caso ou NULL caso haja erro na transformação de
-	 *         algum valor.
+	 * @return Vetor de inteiros convertidos ou NULL caso haja erro na transformação
+	 * de algum valor.
 	 */
 	private int[] converteComandoAdd(Matcher acerto) {
 		Integer valor1 = this.converteValor(acerto.group(1));
@@ -231,8 +237,8 @@ public class EntradaSaida implements Runnable {
 	 * Converte instrução MOV para números representativos.
 	 * 
 	 * @param acerto
-	 * @return Vetor de inteiros caso ou NULL caso haja erro na transformação de
-	 *         algum valor.
+	 * @return Vetor de inteiros convertidos ou NULL caso haja erro na transformação
+	 * de algum valor.
 	 */
 	private int[] converteComandoMov(Matcher acerto) {
 		Integer valor1 = this.converteValor(acerto.group(1));
@@ -248,8 +254,8 @@ public class EntradaSaida implements Runnable {
 	 * Converte instrução IMUL para números representativos.
 	 * 
 	 * @param acerto
-	 * @return Vetor de inteiros caso ou NULL caso haja erro na transformação de
-	 *         algum valor.
+	 * @return Vetor de inteiros convertidos ou NULL caso haja erro na transformação
+	 * de algum valor.
 	 */
 	private int[] converteComandoImul(Matcher acerto) {
 		Integer valor1 = this.converteValor(acerto.group(1));
@@ -266,8 +272,8 @@ public class EntradaSaida implements Runnable {
 	 * Converte instrução INC para números representativos.
 	 * 
 	 * @param acerto
-	 * @return Vetor de inteiros caso ou NULL caso haja erro na transformação de
-	 *         algum valor.
+	 * @return Vetor de inteiros convertidos ou NULL caso haja erro na transformação
+	 * de algum valor.
 	 */
 	private int[] converteComandoInc(Matcher acerto) {
 		Integer valor1 = this.converteValor(acerto.group(1));
@@ -275,6 +281,22 @@ public class EntradaSaida implements Runnable {
 			return null;
 		}
 		int[] valores = { -1, -1, 4, valor1, -1, -1, 2 };
+		return valores;
+	}
+	
+	/**
+	 * Converte instrução DEC para números representativos.
+	 * 
+	 * @param acerto
+	 * @return Vetor de inteiros convertidos ou NULL caso haja erro na transformação
+	 * de algum valor.
+	 */
+	private int[] converteComandoDec(Matcher acerto) {
+		Integer valor1 = this.converteValor(acerto.group(1));
+		if (valor1 == null) {
+			return null;
+		}
+		int[] valores = { -1, -1, 5, valor1, -1, -1, 2 };
 		return valores;
 	}
 

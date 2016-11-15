@@ -25,6 +25,8 @@ public class Cpu implements Runnable {
 	private boolean pode_gravar_resposta_para_ram = false;
 	private boolean pode_mandar_dado_mov = false;
 	private int num_instrucoes_esperadas = 0;
+	private boolean ultimo_loop = false;
+	private boolean processamento_finalizado = false;
 
 	@Override
 	public void run() {
@@ -35,7 +37,10 @@ public class Cpu implements Runnable {
 				e.printStackTrace();
 			}
 			
-			if (this.pode_pedir_instrucao && Modulo.barramento.es_finalizada) {
+			if (this.pode_pedir_instrucao && Modulo.barramento.es_finalizada && !this.processamento_finalizado) {
+				if (this.ultimo_loop) {
+					this.processamento_finalizado  = true;
+				}
 				System.out.println("CPU: pediu instrução ("+this.CI+")");
 				int[] sinal_controle = {NUMERO_DESSE_MODULO, 2, 0, this.CI};
 				Modulo.barramento.fila_controle.add(sinal_controle);
@@ -50,9 +55,9 @@ public class Cpu implements Runnable {
 			}
 			
 			if (this.pode_gravar_resultado) {
-				this.gravaResultado();
 				this.pode_gravar_resultado = false;
 				this.pode_gravar_resposta_para_ram  = true;
+				this.gravaResultado();
 			}
 			
 			if (this.grava_sinal_controle_mov) {
@@ -88,6 +93,8 @@ public class Cpu implements Runnable {
 				this.defineRegistradorD(this.resultado);
 				break;
 			}
+			System.out.print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n| "+this.registrador_a+" | "+this.registrador_b+" | "+this.registrador_c+" | "+this.registrador_d+" |\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
+			this.preparaCpuParaProximaInstrucao();
 		}
 	}
 
@@ -108,6 +115,10 @@ public class Cpu implements Runnable {
 		case 4: // INC
 			this.processaInc();
 			System.out.println("CPU: processou instrucao INC");
+			break;
+		case 5: // DEC
+			this.processaDec();
+			System.out.println("CPU: processou instrucao DEC");
 			break;
 		}
 	}
@@ -154,6 +165,12 @@ public class Cpu implements Runnable {
 		this.resultado = valor + 1;
 		this.pode_gravar_resultado = true;
 	}
+	
+	private void processaDec() {
+		int valor = this.valores.get(0);
+		this.resultado = valor - 1;
+		this.pode_gravar_resultado = true;
+	}
 
 	public int pegaRegistradorA() {
 		return registrador_a;
@@ -188,9 +205,17 @@ public class Cpu implements Runnable {
 	}
 
 	public void avancaCi() {
+		if (this.ultimo_loop) {
+			System.out.println("CPU: fim do Processamento");
+			Thread.interrupted();
+			this.pode_pedir_instrucao = false;
+		}
 		this.CI += 4;
 		if (this.CI >= (Modulo.memoria_ram.memoria.length / 2)) {
 			this.CI = 0;
+		}
+		if (this.CI == Modulo.barramento.ultima_posicao_inserida) {
+			this.ultimo_loop = true;
 		}
 	}
 
@@ -262,7 +287,7 @@ public class Cpu implements Runnable {
 		System.out.println("");
 		
 		if (this.instrucao_atual.size() > 0 && this.instrucao_atual.get(2) > 0 
-				&& this.instrucao_atual.get(2) < 5 && this.valores.size() == 3 
+				&& this.instrucao_atual.get(2) < 6 && this.valores.size() == 3 
 				&& this.num_instrucoes_esperadas == 0) {
 			this.pode_processar_instrucao = true;
 		}

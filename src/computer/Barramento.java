@@ -6,11 +6,12 @@ import main.Modulo;
 
 public class Barramento implements Runnable {
 
-	public int largura_de_banda = 6;
+	public int largura_de_banda = 8;
 
 	public int largura, frequencia;
 	
 	public boolean es_finalizada = false;
+	public int ultima_posicao_inserida = -1;
 
 	// (origem, destino, ação, endereço)
 	ArrayList<int[]> fila_controle = new ArrayList<int[]>();
