@@ -6,10 +6,8 @@ import main.Modulo;
 
 public class Barramento implements Runnable {
 
-	public int largura_de_banda = 8;
+	public int largura_de_banda, numero_de_instrucoes_passadas;
 
-	public int largura, frequencia;
-	
 	public boolean es_finalizada = false;
 	public int ultima_posicao_inserida = -1;
 
@@ -36,9 +34,8 @@ public class Barramento implements Runnable {
 	 * @param largura
 	 * @param frequencia
 	 */
-	public Barramento(int largura, int frequencia) {
-		this.largura = largura;
-		this.frequencia = frequencia;
+	public Barramento(int largura, int clock) {
+		this.largura_de_banda = (largura * clock) / 8;
 	}
 
 	/**
@@ -153,17 +150,17 @@ public class Barramento implements Runnable {
 			} catch (InterruptedException e) {
 				e.printStackTrace();
 			}
-			for (int i = 0; i < this.largura_de_banda; i++) {
+			for (int i = 0; i < this.numero_de_instrucoes_passadas; i++) {
 				// Verifica fila de controle
 				this.verificaFilaControle();
 			}
 
-			for (int i = 0; i < this.largura_de_banda; i++) {
+			for (int i = 0; i < this.numero_de_instrucoes_passadas; i++) {
 				// Verifica fila de endereços
 				this.verificaFilaEnderecos();
 			}
 
-			for (int i = 0; i < this.largura_de_banda; i++) {
+			for (int i = 0; i < this.numero_de_instrucoes_passadas; i++) {
 				// Verifica fila de dados
 				this.verificaFilaDados();
 			}
@@ -192,7 +189,7 @@ public class Barramento implements Runnable {
 	}
 
 	private void verificaFilaEnderecos() {
-		for (int i = 0; i < this.largura_de_banda; i++) {
+		for (int i = 0; i < this.numero_de_instrucoes_passadas; i++) {
 			if (this.fila_endereco.size() > 0) {
 				int[] sinal_endereco = this.fila_endereco.get(0);
 				switch (sinal_endereco[1]) { // Verifica o destino e despacha
@@ -211,7 +208,7 @@ public class Barramento implements Runnable {
 	}
 
 	private void verificaFilaControle() {
-		for (int i = 0; i < this.largura_de_banda; i++) {
+		for (int i = 0; i < this.numero_de_instrucoes_passadas; i++) {
 			if (this.fila_controle.size() > 0) {
 				// Sinal de controle sempre é pra RAM
 				Modulo.memoria_ram.recebeControle(this.fila_controle.get(0));

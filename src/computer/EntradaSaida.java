@@ -13,20 +13,10 @@ import main.Modulo;
 /**
  * @author Airton
  * 
- * Dicionario ------- 
- * 0 -> Sinal de Leitura 
- * 1 -> ADD || ES || Sinal de Gravação 
- * 2 -> MOV || RAM 
- * 3 -> IMUL || CPU 
- * 4 -> INC 
- * 5 -> DEC
- * -1 -> null 
- * -2 -> A
- * -3 -> B 
- * -4 -> C 
- * -5 -> D
- * -6 -> Daqui pra menos ficam as posições de
- *         memória [ex: 0x004 = 4 => ((4 + 6) * -1) => -10]
+ *         Dicionario ------- 0 -> Sinal de Leitura 1 -> ADD || ES || Sinal de
+ *         Gravação 2 -> MOV || RAM 3 -> IMUL || CPU 4 -> INC 5 -> DEC -1 ->
+ *         null -2 -> A -3 -> B -4 -> C -5 -> D -6 -> Daqui pra menos ficam as
+ *         posições de memória [ex: 0x004 = 4 => ((4 + 6) * -1) => -10]
  *
  */
 public class EntradaSaida implements Runnable {
@@ -38,6 +28,7 @@ public class EntradaSaida implements Runnable {
 	private ArrayList<Integer> endereco_atual = new ArrayList<Integer>();
 	private boolean pode_mandar_sinal_de_controle = true;
 	private boolean pode_mandar_sinal_de_dado = false;
+	private int indice_da_instrucao_analisada;
 
 	/**
 	 * Lê o arquivo e preenche a lista de instruções convertidas.
@@ -47,7 +38,8 @@ public class EntradaSaida implements Runnable {
 	 */
 	public boolean compilaArquivo() {
 		// Lê o arquivo e passa para a lista de instruções
-//		String caminho = "C:\\Users\\Airton\\workspace\\Emulador\\src\\main\\asm.txt";
+		// String caminho =
+		// "C:\\Users\\Airton\\workspace\\Emulador\\src\\main\\asm.txt";
 		String caminho = "C:\\sistemas\\EmuladorJava\\src\\main\\asm.txt";
 		try {
 			leitor = new BufferedReader(new FileReader(caminho));
@@ -84,22 +76,21 @@ public class EntradaSaida implements Runnable {
 			} catch (InterruptedException e) {
 				e.printStackTrace();
 			}
-
+			
 			if (this.pode_mandar_sinal_de_controle) {
-				for (int j = 0; j < Modulo.barramento.largura_de_banda; j++) {
+				this.calculaNumeroDeInstrucoesQuePodemSerPassadas();
+				for (int j = 0; j < Modulo.barramento.numero_de_instrucoes_passadas; j++) {
 					System.out.println("ES: mandou sinal de controle");
 					Modulo.barramento.adicionaFilaControle(sinal_controle);
 				}
 				this.pode_mandar_sinal_de_controle = false;
 			}
-			
-			int ultimo_endereco_utilizado = -1;
+
 			if (this.pode_mandar_sinal_de_dado) {
-				for (int j = 0; j < Modulo.barramento.largura_de_banda; j++) {
+				for (int j = 0; j < Modulo.barramento.numero_de_instrucoes_passadas; j++) {
 					System.out.println("ES: mandou sinal de dado");
 					// Pega o comando em buffer, de acordo com o CI da CPU
-					int[] sinal_dado = this
-							.buffer(contador_de_instrucoes_enviadas);
+					int[] sinal_dado = this.buffer(contador_de_instrucoes_enviadas);
 
 					// Adiciona o destino e o endereço na fila de dado local
 					sinal_dado[0] = NUMERO_DESSE_MODULO;
@@ -109,7 +100,6 @@ public class EntradaSaida implements Runnable {
 					Modulo.barramento.adicionaFilaDado(sinal_dado);
 
 					contador_de_instrucoes_enviadas++;
-					ultimo_endereco_utilizado = this.endereco_atual.get(0);
 					this.endereco_atual.remove(0);
 				}
 				this.pode_mandar_sinal_de_controle = true;
@@ -118,14 +108,33 @@ public class EntradaSaida implements Runnable {
 
 			// Se o contador de instrucoes enviadas ler a última instrução, mata
 			// a thread de entrada e saida
-			if (contador_de_instrucoes_enviadas >= this.instrucoes_convertidas
-					.size()) {
+			if (contador_de_instrucoes_enviadas >= this.instrucoes_convertidas.size()) {
 				System.out.println("Thread ES acabou!");
 				Modulo.barramento.es_finalizada = true;
 				Thread.interrupted();
 				break;
 			}
 
+		}
+	}
+
+	private void calculaNumeroDeInstrucoesQuePodemSerPassadas() {
+		Modulo.barramento.numero_de_instrucoes_passadas = 0;
+		int peso = 0;
+		for (int i = this.indice_da_instrucao_analisada; i < this.instrucoes_convertidas.size(); i++) {
+			if (this.instrucoes_convertidas.get(i).length < 8) {
+				// instrução normal
+				peso += 16;
+			} else {
+				// loop
+				peso += 20;
+			}
+			
+			if (peso <= Modulo.barramento.largura_de_banda) {
+				Modulo.barramento.numero_de_instrucoes_passadas++;
+			} else {
+				break;
+			}
 		}
 	}
 
@@ -151,15 +160,10 @@ public class EntradaSaida implements Runnable {
 	 *         convetidas, FALSE se houver algum erro na instrução.
 	 */
 	public boolean analisadorSintatico(String comando) {
-		Matcher acerto_add = Pattern.compile(
-				"^add\\s+(\\w+)\\s*,\\s*(\\w+)\\s*$").matcher(comando);
-		Matcher acerto_imul = Pattern.compile(
-				"^imul\\s+(\\w+)\\s*,\\s*(\\w+)\\s*,\\s*(\\w+)\\s*$").matcher(
-				comando);
-		Matcher acerto_mov = Pattern.compile(
-				"^mov\\s+(\\w+)\\s*,\\s*(\\w+)\\s*$").matcher(comando);
-		Matcher acerto_inc = Pattern.compile("^inc\\s+(\\w+)\\s*$").matcher(
-				comando);
+		Matcher acerto_add = Pattern.compile("^add\\s+(\\w+)\\s*,\\s*(\\w+)\\s*$").matcher(comando);
+		Matcher acerto_imul = Pattern.compile("^imul\\s+(\\w+)\\s*,\\s*(\\w+)\\s*,\\s*(\\w+)\\s*$").matcher(comando);
+		Matcher acerto_mov = Pattern.compile("^mov\\s+(\\w+)\\s*,\\s*(\\w+)\\s*$").matcher(comando);
+		Matcher acerto_inc = Pattern.compile("^inc\\s+(\\w+)\\s*$").matcher(comando);
 		Matcher acerto_dec = Pattern.compile("^dec\\s+(\\w+)\\s*$").matcher(comando);
 
 		int[] comando_convertido = null;
@@ -198,8 +202,7 @@ public class EntradaSaida implements Runnable {
 			// +6 = pula para o primeiro valor depois do 5, para quando
 			// multiplicar por -1
 			return ((Integer.parseInt(valor.replace("0x", "")) + 6) * -1);
-		} else if (valor.equals("a") || valor.equals("b") || valor.equals("c")
-				|| valor.equals("d")) {
+		} else if (valor.equals("a") || valor.equals("b") || valor.equals("c") || valor.equals("d")) {
 			switch (valor) {
 			case "a":
 				return -2;
@@ -220,8 +223,8 @@ public class EntradaSaida implements Runnable {
 	 * Converte instrução ADD para números representativos.
 	 * 
 	 * @param acerto
-	 * @return Vetor de inteiros convertidos ou NULL caso haja erro na transformação
-	 * de algum valor.
+	 * @return Vetor de inteiros convertidos ou NULL caso haja erro na
+	 *         transformação de algum valor.
 	 */
 	private int[] converteComandoAdd(Matcher acerto) {
 		Integer valor1 = this.converteValor(acerto.group(1));
@@ -237,8 +240,8 @@ public class EntradaSaida implements Runnable {
 	 * Converte instrução MOV para números representativos.
 	 * 
 	 * @param acerto
-	 * @return Vetor de inteiros convertidos ou NULL caso haja erro na transformação
-	 * de algum valor.
+	 * @return Vetor de inteiros convertidos ou NULL caso haja erro na
+	 *         transformação de algum valor.
 	 */
 	private int[] converteComandoMov(Matcher acerto) {
 		Integer valor1 = this.converteValor(acerto.group(1));
@@ -254,8 +257,8 @@ public class EntradaSaida implements Runnable {
 	 * Converte instrução IMUL para números representativos.
 	 * 
 	 * @param acerto
-	 * @return Vetor de inteiros convertidos ou NULL caso haja erro na transformação
-	 * de algum valor.
+	 * @return Vetor de inteiros convertidos ou NULL caso haja erro na
+	 *         transformação de algum valor.
 	 */
 	private int[] converteComandoImul(Matcher acerto) {
 		Integer valor1 = this.converteValor(acerto.group(1));
@@ -272,8 +275,8 @@ public class EntradaSaida implements Runnable {
 	 * Converte instrução INC para números representativos.
 	 * 
 	 * @param acerto
-	 * @return Vetor de inteiros convertidos ou NULL caso haja erro na transformação
-	 * de algum valor.
+	 * @return Vetor de inteiros convertidos ou NULL caso haja erro na
+	 *         transformação de algum valor.
 	 */
 	private int[] converteComandoInc(Matcher acerto) {
 		Integer valor1 = this.converteValor(acerto.group(1));
@@ -283,13 +286,13 @@ public class EntradaSaida implements Runnable {
 		int[] valores = { -1, -1, 4, valor1, -1, -1, 2 };
 		return valores;
 	}
-	
+
 	/**
 	 * Converte instrução DEC para números representativos.
 	 * 
 	 * @param acerto
-	 * @return Vetor de inteiros convertidos ou NULL caso haja erro na transformação
-	 * de algum valor.
+	 * @return Vetor de inteiros convertidos ou NULL caso haja erro na
+	 *         transformação de algum valor.
 	 */
 	private int[] converteComandoDec(Matcher acerto) {
 		Integer valor1 = this.converteValor(acerto.group(1));

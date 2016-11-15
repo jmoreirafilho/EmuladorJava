@@ -92,7 +92,7 @@ public class MemoriaRam implements Runnable {
 
 			// Manda Endereco
 			if (this.pode_mandar_endereco_pra_es) { // manda endereco pra ES
-				for (int i = 0; i < Modulo.barramento.largura_de_banda; i++) {
+				for (int i = 0; i < Modulo.barramento.numero_de_instrucoes_passadas; i++) {
 					int endereco = 0;
 					if (this.primeiro_loop) {
 						endereco = this.pegaPosicaoDisponivel();
