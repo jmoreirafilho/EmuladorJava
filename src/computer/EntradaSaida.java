@@ -46,7 +46,8 @@ public class EntradaSaida implements Runnable {
 	 */
 	public boolean compilaArquivo() {
 		// Lê o arquivo e passa para a lista de instruções
-		String caminho = "C:\\Users\\Airton\\workspace\\Emulador\\src\\main\\asm.txt";
+//		String caminho = "C:\\Users\\Airton\\workspace\\Emulador\\src\\main\\asm.txt";
+		String caminho = "C:\\sistemas\\EmuladorJava\\src\\main\\asm.txt";
 		try {
 			leitor = new BufferedReader(new FileReader(caminho));
 			while (leitor.ready()) {
@@ -117,6 +118,7 @@ public class EntradaSaida implements Runnable {
 			if (contador_de_instrucoes_enviadas >= this.instrucoes_convertidas
 					.size()) {
 				System.out.println("Thread ES acabou!");
+				Modulo.barramento.es_finalizada = true;
 				Thread.interrupted();
 				break;
 			}

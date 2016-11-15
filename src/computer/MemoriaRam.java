@@ -1,5 +1,7 @@
 package computer;
 
+import java.util.ArrayList;
+
 import main.Modulo;
 
 public class MemoriaRam implements Runnable {
@@ -15,10 +17,7 @@ public class MemoriaRam implements Runnable {
 	private boolean pode_mandar_dado_pra_cpu = false;
 	private boolean primeiro_loop = true;
 
-	private int[] controle_cpu;
-
-	private int[] sinal_endereco = { NUMERO_DESSE_MODULO, -1, -1 };
-	private int[] sinal_dado;
+	private ArrayList<int[]> controle_cpu = new ArrayList<int[]>();
 
 	public MemoriaRam(int tamanho) {
 		this.tamanho = tamanho;
@@ -70,8 +69,11 @@ public class MemoriaRam implements Runnable {
 	}
 
 	private void adicionaNoFinalDaMemoria(int posicao, int valor) {
-		int posicao_real = (posicao * -1) - 6;
-		this.memoria[posicao_real] = valor;
+		System.out.println("RAM: adicionou "+valor+" na posicao "+posicao);
+		this.memoria[posicao] = valor;
+		this.pode_mandar_endereco_pra_cpu = false;
+		this.pode_mandar_dado_pra_cpu = false;
+		this.controle_cpu.clear();
 	}
 
 	/*
@@ -98,11 +100,9 @@ public class MemoriaRam implements Runnable {
 						endereco = this.pegaProximoEndereco(i);
 					}
 
-					System.out.println("RAM: mandou sinal de endereco pra ES ("
-							+ endereco + ")");
+					System.out.println("RAM: mandou sinal de endereco pra ES (" + endereco + ")");
 
-					int[] sinal_endereco_es = { NUMERO_DESSE_MODULO, 1,
-							endereco };
+					int[] sinal_endereco_es = { NUMERO_DESSE_MODULO, 1, endereco };
 
 					Modulo.barramento.adicionaFilaEndereco(sinal_endereco_es);
 					this.primeiro_loop = false;
@@ -111,47 +111,36 @@ public class MemoriaRam implements Runnable {
 				this.primeiro_loop = true;
 			}
 
-			int[] instrucao = new int[4];
 			if (this.pode_mandar_endereco_pra_cpu) { // manda endereco pra cpu
 				System.out.println("RAM: mandou sinal de endereco pra CPU");
-				int[] sinal_endereco_cpu = { NUMERO_DESSE_MODULO, 3, this.controle_cpu[2] };
+				int[] sinal_endereco_cpu = { NUMERO_DESSE_MODULO, 3, this.controle_cpu.get(0)[3] };
 
 				// Grava sinal de endereco
 				Modulo.barramento.adicionaFilaEndereco(sinal_endereco_cpu);
-
-				// Prepara sinal de dado, se necessário
-				if (this.controle_cpu[2] == 0 && this.pode_mandar_dado_pra_cpu) { // CPU
-																					// lendo
-					int posicao = this.controle_cpu[2];
-					if (this.controle_cpu[2] < this.memoria.length / 2) { // manda
-																			// endereco
-																			// de
-																			// instrucao
-						// Prepara sinal de dado, sendo uma instrucao.
-						instrucao[0] = this.memoria[posicao];
-						instrucao[1] = this.memoria[posicao + 1];
-						instrucao[2] = this.memoria[posicao + 2];
-						instrucao[3] = this.memoria[posicao + 3];
-					} else { // Manda endereco de memoria
-						// Prepara sinal de dado, sendo um valor
-						instrucao[0] = -1;
-						instrucao[1] = this.memoria[posicao];
-						instrucao[2] = -1;
-						instrucao[3] = -1;
-					}
-				}
 				this.pode_mandar_endereco_pra_cpu = false;
 			}
 
-			if (this.pode_mandar_dado_pra_cpu) {
+			if (this.pode_mandar_dado_pra_cpu && this.controle_cpu.get(0).length > 0) {
+				int posicao = this.controle_cpu.get(0)[3];
 				System.out.println("RAM: mandou sinal de dado pra cpu");
-				if (instrucao[0] == -1) {
-					int[] sinal_dado_pra_cpu = { 3, instrucao[1] };
-					Modulo.barramento.adicionaFilaDado(sinal_dado_pra_cpu);
+				if (posicao < this.memoria.length / 2) {
+					if (posicao < 0) {
+						posicao = (posicao * -1) - 6 + (this.tamanho / 2);
+					}
+					int[] inst = { NUMERO_DESSE_MODULO, posicao, this.memoria[posicao], this.memoria[posicao + 1],
+							this.memoria[posicao + 2], this.memoria[posicao + 3], 3 };
+					Modulo.barramento.adicionaFilaDado(inst);
 				} else {
-					Modulo.barramento.adicionaFilaDado(instrucao);
+					int[] sinal_dado_pra_cpu = { 3, this.controle_cpu.get(0)[3], this.memoria[posicao] };
+					Modulo.barramento.adicionaFilaDado(sinal_dado_pra_cpu);
 				}
 				this.pode_mandar_dado_pra_cpu = false;
+				this.controle_cpu.remove(0);
+			}
+			
+			if (this.controle_cpu.size() > 0) {
+				this.pode_mandar_endereco_pra_cpu = true;
+				this.pode_mandar_dado_pra_cpu = true;
 			}
 
 		}
@@ -163,17 +152,18 @@ public class MemoriaRam implements Runnable {
 			this.pode_mandar_endereco_pra_es = true;
 		} else { // veio da cpu
 			this.pode_mandar_endereco_pra_cpu = true;
-			if (sinal_controle[2] == 1) { // Leitura
+			if (sinal_controle[2] == 0) { // Leitura
 				this.pode_mandar_dado_pra_cpu = true;
+			} else {
+				this.pode_mandar_dado_pra_cpu = false;
 			}
-			this.controle_cpu = sinal_controle;
+			this.controle_cpu.add(sinal_controle);
 		}
 	}
 
 	public void recebeDado(int[] sinal_dado) {
 		if (sinal_dado.length > 3) { // Veio da ES
-			System.out.println("RAM: recebeu sinal de dado da ES ("
-					+ sinal_dado[1] + ")");
+			System.out.println("RAM: recebeu sinal de dado da ES (" + sinal_dado[1] + ")");
 			this.adicionaNoComecoDaMemoria(sinal_dado[1], sinal_dado);
 		} else { // Veio da CPU
 			System.out.println("RAM: recebeu sinal de dado da CPU");
@@ -183,10 +173,11 @@ public class MemoriaRam implements Runnable {
 	}
 
 	private void imprimeMemoria() {
-		System.out.println("- RAM --------------------------");
 		for (int i = 0; i < this.memoria.length; i++) {
 			System.out.print(this.memoria[i] + " | ");
+			if (i == (this.memoria.length - 1)) {
+				System.out.println("\n");
+			}
 		}
-		System.out.println("\n---------------------------");
 	}
 }

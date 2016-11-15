@@ -9,8 +9,8 @@ public class Cpu implements Runnable {
 	private boolean pode_processar_instrucao = false;
 
 	private int endereco_atual;
-	private int[] instrucao_atual;
-	ArrayList<Integer> valores = new ArrayList<Integer>(); // tam max = 3
+	private ArrayList<Integer> instrucao_atual = new ArrayList<Integer>();
+	private ArrayList<Integer> valores = new ArrayList<Integer>(); // tam max = 3
 
 	private int registrador_a;
 	private int registrador_b;
@@ -21,6 +21,10 @@ public class Cpu implements Runnable {
 	private int resultado;
 	private boolean pode_gravar_resultado;
 	private boolean grava_sinal_controle_mov;
+	private boolean pode_pedir_instrucao = true;
+	private boolean pode_gravar_resposta_para_ram = false;
+	private boolean pode_mandar_dado_mov = false;
+	private int num_instrucoes_esperadas = 0;
 
 	@Override
 	public void run() {
@@ -30,30 +34,47 @@ public class Cpu implements Runnable {
 			} catch (InterruptedException e) {
 				e.printStackTrace();
 			}
+			
+			if (this.pode_pedir_instrucao && Modulo.barramento.es_finalizada) {
+				System.out.println("CPU: pediu instrução ("+this.CI+")");
+				int[] sinal_controle = {NUMERO_DESSE_MODULO, 2, 0, this.CI};
+				Modulo.barramento.fila_controle.add(sinal_controle);
+				this.avancaCi();
+				this.pode_pedir_instrucao = false;
+			}
 
 			// Processa uma instrução
 			if (this.pode_processar_instrucao) {
 				this.processaInstrucao();
+				this.pode_processar_instrucao = false;
 			}
 			
 			if (this.pode_gravar_resultado) {
 				this.gravaResultado();
+				this.pode_gravar_resultado = false;
+				this.pode_gravar_resposta_para_ram  = true;
 			}
 			
 			if (this.grava_sinal_controle_mov) {
-				int[] sinal_controle = {NUMERO_DESSE_MODULO, 2, 1, this.instrucao_atual[3]};
+				System.out.println("CPU: gravou sinal de controle do MOV");
+				int[] sinal_controle = {NUMERO_DESSE_MODULO, 2, 1, this.instrucao_atual.get(3)};
 				Modulo.barramento.fila_controle.add(sinal_controle);
+				this.grava_sinal_controle_mov = false;
+				this.pode_mandar_dado_mov = true;
 			}
 
 		}
 	}
 
 	private void gravaResultado() {
-		if (this.instrucao_atual[3] > -5) { // posição na memória ram
-			int[] sinal_controle = {NUMERO_DESSE_MODULO, 2, 1, this.instrucao_atual[3]};
+		if (this.instrucao_atual.get(3) < -5) { // posição na memória ram
+			System.out.println("CPU: gravou resultado na RAM");
+			int posicao_real = (this.instrucao_atual.get(3) * -1) - 6 + (Modulo.memoria_ram.tamanho / 2);
+			int[] sinal_controle = {NUMERO_DESSE_MODULO, 2, 1, posicao_real};
 			Modulo.barramento.fila_controle.add(sinal_controle);
-		} else if (this.instrucao_atual[3] > -6 && this.instrucao_atual[3] < -1) { // registrador
-			switch (this.instrucao_atual[3]) {
+		} else if (this.instrucao_atual.get(3) > -6 && this.instrucao_atual.get(3) < -1) { // registrador
+			System.out.println("CPU: gravou resultado nos registradores");
+			switch (this.instrucao_atual.get(3)) {
 			case -2: // A
 				this.defineRegistradorA(this.resultado);
 				break;
@@ -71,18 +92,22 @@ public class Cpu implements Runnable {
 	}
 
 	private void processaInstrucao() {
-		switch (this.instrucao_atual[2]) {
+		switch (this.instrucao_atual.get(2)) {
 		case 1: // ADD
+			System.out.println("CPU: processou instrucao ADD");
 			this.processaAdd();
 			break;
 		case 2: // MOV
+			System.out.println("CPU: processou instrucao MOV");
 			this.processaMov();
 			break;
 		case 3: // IMUL
 			this.processaImul();
+			System.out.println("CPU: processou instrucao IMUL");
 			break;
 		case 4: // INC
 			this.processaInc();
+			System.out.println("CPU: processou instrucao INC");
 			break;
 		}
 	}
@@ -95,11 +120,12 @@ public class Cpu implements Runnable {
 	}
 
 	private void processaMov() {
-		if (this.instrucao_atual[3] < -5) { // posicao da memória ram
+		if (this.instrucao_atual.get(3) < -5) { // posicao da memória ram
 			this.resultado = this.valores.get(1);
 			this.grava_sinal_controle_mov = true;
+			System.out.println("CPU: processou mov: "+this.resultado);
 		} else { // registrador
-			switch (this.instrucao_atual[3]) {
+			switch (this.instrucao_atual.get(3)) {
 			case -2: // A
 				this.defineRegistradorA(this.valores.get(1));
 				break;
@@ -176,11 +202,13 @@ public class Cpu implements Runnable {
 	 * @param sinal_endereco
 	 */
 	public void recebeEndereco(int[] sinal_endereco) {
-		System.out.println("CPU: recebeu sinal de endereco");
+		System.out.println("CPU: recebeu sinal de endereco: "+sinal_endereco[0]+", "+sinal_endereco[1]+", "+sinal_endereco[2]);
 		this.endereco_atual = sinal_endereco[2];
-		if (this.pode_processar_instrucao && this.grava_sinal_controle_mov) {
+		if (this.pode_mandar_dado_mov) {
 			this.mandaSinalDadoMov();
-		} else if (this.pode_gravar_resultado) {
+			this.preparaCpuParaProximaInstrucao();
+		} else if (this.pode_gravar_resposta_para_ram) {
+			System.out.println("CPU: gravou sinal de dado");
 			int[] sinal_dado = {2, this.endereco_atual, this.resultado};
 			Modulo.barramento.fila_dado.add(sinal_dado);
 			this.preparaCpuParaProximaInstrucao();
@@ -188,19 +216,20 @@ public class Cpu implements Runnable {
 	}
 
 	private void preparaCpuParaProximaInstrucao() {
-		for (int i = 0; i < this.instrucao_atual.length; i++) {
-			this.instrucao_atual = {};
-		}
-		this.instrucao_atual[0] = -1;
-		this.instrucao_atual[1] = -1;
-		this.instrucao_atual[2] = -1;
-		this.instrucao_atual[3] = -1;
+		this.instrucao_atual.clear();
+		this.valores.clear();
+		this.pode_pedir_instrucao = true;
+		this.pode_gravar_resposta_para_ram = false;
+		this.num_instrucoes_esperadas = 0;
+		System.out.println("CPU: resetou valores para proximo loop");
 	}
 
 	private void mandaSinalDadoMov() {
-		int[] sinal_dado = {2, this.endereco_atual, this.resultado};
+		int posicao_real = (this.endereco_atual * -1) - 6 + (Modulo.memoria_ram.tamanho / 2);
+		int[] sinal_dado = {2, posicao_real, this.resultado};
 		Modulo.barramento.fila_dado.add(sinal_dado);
-		this.grava_sinal_controle_mov = false;
+		this.pode_mandar_dado_mov = false;
+		System.out.println("CPU: gravou sinal de dado (MOV)");
 	}
 
 	/**
@@ -211,42 +240,71 @@ public class Cpu implements Runnable {
 	public void recebeDado(int[] sinal_dado) {
 		System.out.println("CPU: recebeu sinal de dado");
 		if (sinal_dado.length == 3) { // É um valor
-			this.adicionaNaPrimeiraPosicaoDeValoresDisponivel(sinal_dado[1]);
+			this.adicionaNaPrimeiraPosicaoDeValoresDisponivel(sinal_dado[2]);
+			this.num_instrucoes_esperadas--;
 		} else { // É uma instrução
-			this.instrucao_atual = sinal_dado;
+			for (int i = 0; i < sinal_dado.length; i++) {
+				this.instrucao_atual.add(sinal_dado[i]);
+			}
 			this.pegaValoresDosParametros();
 		}
 		this.verificaSeInstrucaoEstaProntaParaSerProcessada();
 	}
 
 	private void verificaSeInstrucaoEstaProntaParaSerProcessada() {
-		if (this.instrucao_atual.length > 0 && this.instrucao_atual[2] > 0 
-				&& this.instrucao_atual[2] < 5 && this.valores.size() == 3) {
+		System.out.println("CPU: verifica se a instrucao esta pronta para ser utilizada ("+num_instrucoes_esperadas+")");
+		for (int i = 0; i < this.valores.size(); i++) {
+			if (i == 0) {
+				System.out.println("---------------------------------------------------------------------------");
+			}
+			System.out.print("| "+this.valores.get(i)+" | ");
+		}
+		System.out.println("");
+		
+		if (this.instrucao_atual.size() > 0 && this.instrucao_atual.get(2) > 0 
+				&& this.instrucao_atual.get(2) < 5 && this.valores.size() == 3 
+				&& this.num_instrucoes_esperadas == 0) {
 			this.pode_processar_instrucao = true;
 		}
 	}
 
 	private void adicionaNaPrimeiraPosicaoDeValoresDisponivel(int valor) {
-		for (int i = 0; i < 3; i++) {
-			if (this.valores.size() < 0 && this.valores.get(i) != -1) {
+		System.out.println("CPU: recebeu um valor para um parametro buscado");
+		boolean pode_adicionar = true;
+		for (int i = 0; i < this.valores.size(); i++) {
+			if (this.valores.size() > 0 && this.valores.get(i) == -1 && pode_adicionar) {
+				pode_adicionar = false;
+				
 				// adiciona o valor
-				this.valores.add(valor);
+				System.out.println("CPU: adicionou "+valor+" na posicao "+i);
+				this.valores.set(i, valor);
 			}
 		}
 	}
 
 	private void pegaValoresDosParametros() {
-		if (this.instrucao_atual.length == 7) { // instrução normal
-			this.pedeValorParaRam(0, this.instrucao_atual[3]);
-			if (this.instrucao_atual[4] != -1) {
-				this.pedeValorParaRam(1, this.instrucao_atual[4]);
-			} else {
-				this.valores.add(1, -1);
+		if (this.instrucao_atual.size() == 7) { // instrução normal
+			if (this.valores.size() == 0) {
+				for (int i = 0; i < 3; i++) {
+					this.valores.add(-1);
+				}	
 			}
-			if (this.instrucao_atual[5] != -1) {
-				this.pedeValorParaRam(2, this.instrucao_atual[5]);
+			
+			// é um mov ou imul, nao precisa pegar o primeiro valor, apenas converter
+			if (this.instrucao_atual.get(2) > 1 && this.instrucao_atual.get(2) < 4) { 
+				int posicao_real = ( this.instrucao_atual.get(3) * -1 ) - 6 + (Modulo.memoria_ram.tamanho / 2);
+				System.out.println("CPU: Converte "+this.instrucao_atual.get(3)+" para "+posicao_real);
+				this.valores.set(0, posicao_real);
 			} else {
-				this.valores.add(2, -1);
+				this.pedeValorParaRam(0, this.instrucao_atual.get(3));
+			}
+			
+			if (this.instrucao_atual.get(4) != -1) {
+				this.pedeValorParaRam(1, this.instrucao_atual.get(4));
+			}
+			
+			if (this.instrucao_atual.get(5) != -1) {
+				this.pedeValorParaRam(2, this.instrucao_atual.get(5));
 			}
 		} else {
 			// LOOP
@@ -254,26 +312,32 @@ public class Cpu implements Runnable {
 	}
 
 	private void pedeValorParaRam(int indice, int parametro) {
+		System.out.println("CPU: computa parametro "+parametro);
 		if (parametro > -6 && parametro < -1) {
 			// registrador
 			switch (parametro) {
 			case -2:
-				this.valores.add(indice, this.pegaRegistradorA());
+				this.valores.set(indice, this.pegaRegistradorA());
 				break;
 			case -3:
-				this.valores.add(indice, this.pegaRegistradorB());
+				this.valores.set(indice, this.pegaRegistradorB());
 				break;
 			case -4:
-				this.valores.add(indice, this.pegaRegistradorC());
+				this.valores.set(indice, this.pegaRegistradorC());
 				break;
 			case -5:
-				this.valores.add(indice, this.pegaRegistradorD());
+				this.valores.set(indice, this.pegaRegistradorD());
 				break;
 			}
-		} else {
+		} else if (parametro < -5) {
 			// posição de memória
-			int[] sinal_de_controle = {NUMERO_DESSE_MODULO, 2, 0, parametro};
+			this.num_instrucoes_esperadas++;
+			int parametro_real = (parametro * -1) - 6 + (Modulo.memoria_ram.tamanho / 2);
+			System.out.println("CPU: manda sinal de controle para buscar parametro ("+parametro_real+")");
+			int[] sinal_de_controle = {NUMERO_DESSE_MODULO, 2, 0, parametro_real};
 			Modulo.barramento.fila_controle.add(sinal_de_controle);
+		} else {
+			this.valores.set(indice, parametro);
 		}
 	}
 

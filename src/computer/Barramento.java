@@ -9,6 +9,8 @@ public class Barramento implements Runnable {
 	public int largura_de_banda = 6;
 
 	public int largura, frequencia;
+	
+	public boolean es_finalizada = false;
 
 	// (origem, destino, ação, endereço)
 	ArrayList<int[]> fila_controle = new ArrayList<int[]>();
@@ -150,17 +152,17 @@ public class Barramento implements Runnable {
 			} catch (InterruptedException e) {
 				e.printStackTrace();
 			}
-			for (int i = 0; i < 2; i++) {
+			for (int i = 0; i < this.largura_de_banda; i++) {
 				// Verifica fila de controle
 				this.verificaFilaControle();
 			}
 
-			for (int i = 0; i < 2; i++) {
+			for (int i = 0; i < this.largura_de_banda; i++) {
 				// Verifica fila de endereços
 				this.verificaFilaEnderecos();
 			}
 
-			for (int i = 0; i < 2; i++) {
+			for (int i = 0; i < this.largura_de_banda; i++) {
 				// Verifica fila de dados
 				this.verificaFilaDados();
 			}
@@ -189,8 +191,8 @@ public class Barramento implements Runnable {
 	}
 
 	private void verificaFilaEnderecos() {
-		if (this.fila_endereco.size() > 0) {
-			for (int i = 0; i < this.largura_de_banda; i++) {
+		for (int i = 0; i < this.largura_de_banda; i++) {
+			if (this.fila_endereco.size() > 0) {
 				int[] sinal_endereco = this.fila_endereco.get(0);
 				switch (sinal_endereco[1]) { // Verifica o destino e despacha
 				case 1: // ES
@@ -208,8 +210,8 @@ public class Barramento implements Runnable {
 	}
 
 	private void verificaFilaControle() {
-		if (this.fila_controle.size() > 0) {
-			for (int i = 0; i < this.largura_de_banda; i++) {
+		for (int i = 0; i < this.largura_de_banda; i++) {
+			if (this.fila_controle.size() > 0) {
 				// Sinal de controle sempre é pra RAM
 				Modulo.memoria_ram.recebeControle(this.fila_controle.get(0));
 
