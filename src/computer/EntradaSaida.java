@@ -12,12 +12,23 @@ import main.Modulo;
 
 /**
  * @author Airton
- * 
- *         Dicionario ------- 0 -> Sinal de Leitura 1 -> ADD || ES || Sinal de
- *         Gravação 2 -> MOV || RAM 3 -> IMUL || CPU 4 -> INC 5 -> DEC -1 ->
- *         null -2 -> A -3 -> B -4 -> C -5 -> D -6 -> Daqui pra menos ficam as
+ * Dicionario ------- 
+ * 0 -> Sinal de Leitura 
+ * 1 -> ADD || ES || Sinal de Gravação
+ * 2 -> MOV || RAM || Sinal de LOOP
+ * 3 -> IMUL || CPU 
+ * 4 -> INC 
+ * 5 -> DEC 
+ * 6 -> LABEL
+ * 7 -> LOOP
+ * -1 -> null 
+ * -2 -> A || >
+ * -3 -> B || <
+ * -4 -> C || >=
+ * -5 -> D || <=
+ * -6 -> == || Daqui pra menos ficam as
  *         posições de memória [ex: 0x004 = 4 => ((4 + 6) * -1) => -10]
- *
+ * -7 -> !=
  */
 public class EntradaSaida implements Runnable {
 	private ArrayList<int[]> instrucoes_convertidas = new ArrayList<int[]>();
@@ -29,6 +40,7 @@ public class EntradaSaida implements Runnable {
 	private boolean pode_mandar_sinal_de_controle = true;
 	private boolean pode_mandar_sinal_de_dado = false;
 	private int indice_da_instrucao_analisada;
+	private int sinal_loop;
 
 	/**
 	 * Lê o arquivo e preenche a lista de instruções convertidas.
@@ -40,10 +52,12 @@ public class EntradaSaida implements Runnable {
 		// Lê o arquivo e passa para a lista de instruções
 		// String caminho =
 		// "C:\\Users\\Airton\\workspace\\Emulador\\src\\main\\asm.txt";
-		String caminho = "C:\\sistemas\\EmuladorJava\\src\\main\\asm.txt";
+//		String caminho = "C:\\sistemas\\EmuladorJava\\src\\main\\asm.txt";
+		String caminho = "C:\\sistemas\\EmuladorJava\\src\\main\\asm2.txt";
 		try {
 			leitor = new BufferedReader(new FileReader(caminho));
 			while (leitor.ready()) {
+				System.out.println("ES: Compila Instrucao");
 				// Valida a sintaxe de cada instrução
 				if (!this.analisadorSintatico(leitor.readLine().toLowerCase())) {
 					return false;
@@ -68,7 +82,7 @@ public class EntradaSaida implements Runnable {
 		int contador_de_instrucoes_enviadas = 0;
 
 		// origem, ação, endereço
-		int[] sinal_controle = { NUMERO_DESSE_MODULO, 2, 0, -1 };
+		int[] sinal_controle = { NUMERO_DESSE_MODULO, 2, 1, -1 };
 
 		while (true) {
 			try {
@@ -80,8 +94,14 @@ public class EntradaSaida implements Runnable {
 			if (this.pode_mandar_sinal_de_controle) {
 				this.calculaNumeroDeInstrucoesQuePodemSerPassadas();
 				for (int j = 0; j < Modulo.barramento.numero_de_instrucoes_passadas; j++) {
-					System.out.println("ES: mandou sinal de controle");
-					Modulo.barramento.adicionaFilaControle(sinal_controle);
+					if (this.sinal_loop == j) {
+						System.out.println("ES: mandou sinal de controle (LOOP)");
+						int[] sinal_controle_loop = {NUMERO_DESSE_MODULO, 2, 2, -1};
+						Modulo.barramento.adicionaFilaControle(sinal_controle_loop);
+					} else {
+						System.out.println("ES: mandou sinal de controle");
+						Modulo.barramento.adicionaFilaControle(sinal_controle);
+					}
 				}
 				this.pode_mandar_sinal_de_controle = false;
 			}
@@ -128,11 +148,13 @@ public class EntradaSaida implements Runnable {
 			} else {
 				// loop
 				peso += 20;
+				this.sinal_loop = Modulo.barramento.numero_de_instrucoes_passadas; 
 			}
 			
 			if (peso <= Modulo.barramento.largura_de_banda) {
 				Modulo.barramento.numero_de_instrucoes_passadas++;
 			} else {
+				this.sinal_loop = -1;
 				break;
 			}
 		}
@@ -165,6 +187,8 @@ public class EntradaSaida implements Runnable {
 		Matcher acerto_mov = Pattern.compile("^mov\\s+(\\w+)\\s*,\\s*(\\w+)\\s*$").matcher(comando);
 		Matcher acerto_inc = Pattern.compile("^inc\\s+(\\w+)\\s*$").matcher(comando);
 		Matcher acerto_dec = Pattern.compile("^dec\\s+(\\w+)\\s*$").matcher(comando);
+		Matcher acerto_label = Pattern.compile("^label\\s+(\\w+)\\s*$").matcher(comando);
+		Matcher acerto_jump = Pattern.compile("^\\((\\w+)\\s+(<|>|<=|>=|==|!=)\\s+(\\w+)\\)\\?jump\\((\\w+)\\)\\:0\\s*$").matcher(comando);
 
 		int[] comando_convertido = null;
 
@@ -178,6 +202,10 @@ public class EntradaSaida implements Runnable {
 			comando_convertido = this.converteComandoInc(acerto_inc);
 		} else if (acerto_dec.matches()) {
 			comando_convertido = this.converteComandoDec(acerto_dec);
+		} else if (acerto_label.matches()) {
+			comando_convertido = this.converteComandoLabel(acerto_label);
+		} else if (acerto_jump.matches()) {
+			comando_convertido = this.converteComandoJump(acerto_jump);
 		}
 
 		if (comando_convertido != null) {
@@ -212,6 +240,22 @@ public class EntradaSaida implements Runnable {
 				return -4;
 			case "d":
 				return -5;
+			}
+		} else if (valor.equals(">") || valor.equals("<") || valor.equals(">=") 
+				|| valor.equals("<=") || valor.equals("==") || valor.equals("!=")) {
+			switch (valor) {
+			case ">":
+				return -2;
+			case "<":
+				return -3;
+			case ">=":
+				return -4;
+			case "<=":
+				return -5;
+			case "==":
+				return -6;
+			case "!=":
+				return -7;
 			}
 		} else if (Integer.parseInt(valor) >= 0) {
 			return Integer.parseInt(valor);
@@ -300,6 +344,41 @@ public class EntradaSaida implements Runnable {
 			return null;
 		}
 		int[] valores = { -1, -1, 5, valor1, -1, -1, 2 };
+		return valores;
+	}
+	
+	/**
+	 * Converte instrução LABEL para números representativos.
+	 * 
+	 * @param acerto
+	 * @return Vetor de inteiros convertidos ou NULL caso haja erro na
+	 *         transformação de algum valor.
+	 */
+	private int[] converteComandoLabel(Matcher acerto) {
+		Integer valor1 = this.converteValor(acerto.group(1));
+		if (valor1 == null) {
+			return null;
+		}
+		int[] valores = { -1, -1, 6, valor1, -1, -1, 2 };
+		return valores;
+	}
+	
+	/**
+	 * Converte instrução JUMP para números representativos.
+	 * 
+	 * @param acerto
+	 * @return Vetor de inteiros convertidos ou NULL caso haja erro na
+	 *         transformação de algum valor.
+	 */
+	private int[] converteComandoJump(Matcher acerto) {
+		Integer valor1 = this.converteValor(acerto.group(1));
+		Integer valor2 = this.converteValor(acerto.group(2));
+		Integer valor3 = this.converteValor(acerto.group(3));
+		Integer valor4 = this.converteValor(acerto.group(4));
+		if (valor1 == null || valor2 == null || valor3 == null || valor4 == null) {
+			return null;
+		}
+		int[] valores = { -1, -1, 7, valor1, valor2, valor3, valor4, 2 };
 		return valores;
 	}
 
