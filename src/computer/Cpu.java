@@ -11,6 +11,10 @@ public class Cpu implements Runnable {
 	private int endereco_atual;
 	private ArrayList<Integer> instrucao_atual = new ArrayList<Integer>();
 	private ArrayList<Integer> valores = new ArrayList<Integer>(); // tam max = 3
+	
+	// 0 => valor do label
+	// 1 => indice do label
+	private ArrayList<Integer> ci_provisorio = new ArrayList<Integer>(); 
 
 	private int registrador_a;
 	private int registrador_b;
@@ -44,6 +48,12 @@ public class Cpu implements Runnable {
 				System.out.println("CPU: pediu instrução ("+this.CI+")");
 				int[] sinal_controle = {NUMERO_DESSE_MODULO, 2, 0, this.CI};
 				Modulo.barramento.fila_controle.add(sinal_controle);
+				if (this.ci_provisorio.size() == 2) {
+					this.ci_provisorio.set(1, this.CI);
+				} else {
+					this.ci_provisorio.add(-1);
+					this.ci_provisorio.add(this.CI);
+				}
 				this.avancaCi();
 				this.pode_pedir_instrucao = false;
 			}
@@ -120,6 +130,14 @@ public class Cpu implements Runnable {
 			this.processaDec();
 			System.out.println("CPU: processou instrucao DEC");
 			break;
+		case 6: // LABEL
+			this.processaLabel();
+			System.out.println("CPU: processou instrucao LABEL");
+			break;
+		case 7: // JUMP
+			this.processaJump();
+			System.out.println("CPU: processou instrucao JUMP");
+			break;
 		}
 	}
 
@@ -170,6 +188,59 @@ public class Cpu implements Runnable {
 		int valor = this.valores.get(0);
 		this.resultado = valor - 1;
 		this.pode_gravar_resultado = true;
+	}
+	
+	private void processaLabel() {
+		this.ci_provisorio.set(0, this.valores.get(0));
+		this.preparaCpuParaProximaInstrucao();
+	}
+	
+	private void processaJump() {
+		int param_1 = this.valores.get(0);
+		int simbolo_comparativo = this.valores.get(1);
+		int param_2 = this.valores.get(2);
+		int indice_do_jump = this.valores.get(3);
+		
+		boolean condicao = false;
+		
+		switch (simbolo_comparativo) {
+		case -2: // >
+			if (param_1 > param_2) {
+				condicao = true;
+			}
+			break;
+		case -3: // <
+			if (param_1 < param_2) {
+				condicao = true;
+			}
+			break;
+		case -4: // >=
+			if (param_1 >= param_2) {
+				condicao = true;
+			}
+			break;
+		case -5: // <=
+			if (param_1 <= param_2) {
+				condicao = true;
+			}
+			break;
+		case -6: // ==
+			if (param_1 == param_2) {
+				condicao = true;
+			}
+			break;
+		case -7: // !=
+			if (param_1 != param_2) {
+				condicao = true;
+			}
+			break;
+		}
+		
+		if (condicao && this.ci_provisorio.get(0) == indice_do_jump) {
+			this.CI = this.ci_provisorio.get(1);
+		}
+		
+		this.preparaCpuParaProximaInstrucao();
 	}
 
 	public int pegaRegistradorA() {
@@ -277,7 +348,7 @@ public class Cpu implements Runnable {
 	}
 
 	private void verificaSeInstrucaoEstaProntaParaSerProcessada() {
-		System.out.println("CPU: verifica se a instrucao esta pronta para ser utilizada ("+num_instrucoes_esperadas+")");
+		System.out.println("CPU: verifica se a instrucao esta pronta para ser utilizada ("+this.num_instrucoes_esperadas+")");
 		for (int i = 0; i < this.valores.size(); i++) {
 			if (i == 0) {
 				System.out.println("---------------------------------------------------------------------------");
@@ -287,7 +358,7 @@ public class Cpu implements Runnable {
 		System.out.println("");
 		
 		if (this.instrucao_atual.size() > 0 && this.instrucao_atual.get(2) > 0 
-				&& this.instrucao_atual.get(2) < 6 && this.valores.size() == 3 
+				&& this.instrucao_atual.get(2) < 8 && this.valores.size() == 3 
 				&& this.num_instrucoes_esperadas == 0) {
 			this.pode_processar_instrucao = true;
 		}
@@ -331,8 +402,6 @@ public class Cpu implements Runnable {
 			if (this.instrucao_atual.get(5) != -1) {
 				this.pedeValorParaRam(2, this.instrucao_atual.get(5));
 			}
-		} else {
-			// LOOP
 		}
 	}
 

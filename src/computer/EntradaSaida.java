@@ -39,8 +39,8 @@ public class EntradaSaida implements Runnable {
 	private ArrayList<Integer> endereco_atual = new ArrayList<Integer>();
 	private boolean pode_mandar_sinal_de_controle = true;
 	private boolean pode_mandar_sinal_de_dado = false;
-	private int indice_da_instrucao_analisada;
-	private int sinal_loop;
+	private int indice_da_instrucao_analisada = 0;
+	private int sinal_loop = -1;
 
 	/**
 	 * Lê o arquivo e preenche a lista de instruções convertidas.
@@ -50,14 +50,13 @@ public class EntradaSaida implements Runnable {
 	 */
 	public boolean compilaArquivo() {
 		// Lê o arquivo e passa para a lista de instruções
-		// String caminho =
-		// "C:\\Users\\Airton\\workspace\\Emulador\\src\\main\\asm.txt";
+//		String caminho = "C:\\Users\\Airton\\workspace\\Emulador\\src\\main\\asm.txt";
+		String caminho = "C:\\Users\\Airton\\workspace\\Emulador\\src\\main\\asm2.txt";
 //		String caminho = "C:\\sistemas\\EmuladorJava\\src\\main\\asm.txt";
-		String caminho = "C:\\sistemas\\EmuladorJava\\src\\main\\asm2.txt";
+//		String caminho = "C:\\sistemas\\EmuladorJava\\src\\main\\asm2.txt";
 		try {
 			leitor = new BufferedReader(new FileReader(caminho));
 			while (leitor.ready()) {
-				System.out.println("ES: Compila Instrucao");
 				// Valida a sintaxe de cada instrução
 				if (!this.analisadorSintatico(leitor.readLine().toLowerCase())) {
 					return false;
@@ -94,10 +93,12 @@ public class EntradaSaida implements Runnable {
 			if (this.pode_mandar_sinal_de_controle) {
 				this.calculaNumeroDeInstrucoesQuePodemSerPassadas();
 				for (int j = 0; j < Modulo.barramento.numero_de_instrucoes_passadas; j++) {
+					System.out.println("ES: LOOP COUNT: "+this.sinal_loop);
 					if (this.sinal_loop == j) {
 						System.out.println("ES: mandou sinal de controle (LOOP)");
 						int[] sinal_controle_loop = {NUMERO_DESSE_MODULO, 2, 2, -1};
 						Modulo.barramento.adicionaFilaControle(sinal_controle_loop);
+						this.sinal_loop = -1;
 					} else {
 						System.out.println("ES: mandou sinal de controle");
 						Modulo.barramento.adicionaFilaControle(sinal_controle);
@@ -141,20 +142,34 @@ public class EntradaSaida implements Runnable {
 	private void calculaNumeroDeInstrucoesQuePodemSerPassadas() {
 		Modulo.barramento.numero_de_instrucoes_passadas = 0;
 		int peso = 0;
+		boolean adicionou_peso;
 		for (int i = this.indice_da_instrucao_analisada; i < this.instrucoes_convertidas.size(); i++) {
-			if (this.instrucoes_convertidas.get(i).length < 8) {
-				// instrução normal
-				peso += 16;
+			if (this.instrucoes_convertidas.get(i)[2] != 7) {
+				System.out.println("ES: Calculou instrução normal");
+				if ((peso + 16) <= Modulo.barramento.largura_de_banda) {
+					peso += 16;
+					adicionou_peso = true;
+				} else {
+					adicionou_peso = false;
+				}
 			} else {
 				// loop
-				peso += 20;
-				this.sinal_loop = Modulo.barramento.numero_de_instrucoes_passadas; 
+				System.out.println("ES: Calculou loop");
+				if ((peso + 20) <= Modulo.barramento.largura_de_banda) {
+					peso += 20;
+					this.sinal_loop = Modulo.barramento.numero_de_instrucoes_passadas;
+					adicionou_peso = true;
+				} else {
+					adicionou_peso = false;
+					this.sinal_loop = -1;
+				}
 			}
 			
-			if (peso <= Modulo.barramento.largura_de_banda) {
+			if (adicionou_peso) {
+				this.indice_da_instrucao_analisada++;
 				Modulo.barramento.numero_de_instrucoes_passadas++;
 			} else {
-				this.sinal_loop = -1;
+				System.out.println("ES: zerou o loop count ---");
 				break;
 			}
 		}

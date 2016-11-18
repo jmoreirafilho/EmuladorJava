@@ -174,13 +174,14 @@ public class Barramento implements Runnable {
 			if (sinal_dado.length == 3) { // é um valor que vai pra CPU
 				destino = sinal_dado[0];
 			} else {
-				destino = sinal_dado[6];
+				destino = sinal_dado[sinal_dado.length - 1];
 			}
 			switch (destino) {
 			case 2:
 				Modulo.memoria_ram.recebeDado(sinal_dado);
 				break;
 			case 3:
+				System.out.println("BRR :::::::::::::::::::::::::: "+sinal_dado.length);
 				Modulo.cpu.recebeDado(sinal_dado);
 				break;
 			}

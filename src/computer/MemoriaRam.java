@@ -19,6 +19,7 @@ public class MemoriaRam implements Runnable {
 
 	private ArrayList<int[]> controle_cpu = new ArrayList<int[]>();
 	private ArrayList<int[]> controle_es = new ArrayList<int[]>();
+	private boolean adicionar_um_devido_ao_loop = false;
 	
 	public MemoriaRam(int tamanho) {
 		this.tamanho = tamanho;
@@ -98,18 +99,17 @@ public class MemoriaRam implements Runnable {
 			if (this.pode_mandar_endereco_pra_es) { // manda endereco pra ES
 				for (int i = 0; i < Modulo.barramento.numero_de_instrucoes_passadas; i++) {
 					int endereco = 0;
-					boolean adicionar_um_devido_ao_loop = false;
 					if (this.primeiro_loop) {
 						endereco = this.pegaPosicaoDisponivel();
 					} else {
 						endereco = this.pegaProximoEndereco(i);
 					}
-					if (adicionar_um_devido_ao_loop) {
+					if (this.adicionar_um_devido_ao_loop) {
 						endereco++;
 					}
 					
 					if (this.controle_es.get(0)[2] == 2) {// é um loop
-						adicionar_um_devido_ao_loop = true;
+						this.adicionar_um_devido_ao_loop = true;
 					}
 
 					System.out.println("RAM: mandou sinal de endereco pra ES (" + endereco + ")");
@@ -165,6 +165,7 @@ public class MemoriaRam implements Runnable {
 		System.out.println("RAM: recebeu sinal de controle");
 		if (sinal_controle[0] == 1) { // Veio da ES
 			this.pode_mandar_endereco_pra_es = true;
+			System.out.println(">>>>>>>>> "+sinal_controle[0]+", "+sinal_controle[1]+", "+sinal_controle[2]+", "+sinal_controle[3]);
 			this.controle_es.add(sinal_controle);
 		} else { // veio da cpu
 			this.pode_mandar_endereco_pra_cpu = true;
