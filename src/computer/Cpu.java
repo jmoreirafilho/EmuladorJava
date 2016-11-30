@@ -2,6 +2,9 @@ package computer;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+
+import com.sun.jmx.snmp.Timestamp;
+
 import computer.Cache;
 
 import main.Modulo;
@@ -36,8 +39,15 @@ public class Cpu implements Runnable {
 	private int num_instrucoes_esperadas = 0;
 	private boolean ultimo_loop = false;
 	private boolean processamento_finalizado = false;
+	private int tamanho_ocupado_cache = 0;
+	
+	// 1 -> FIFO
+	// 2 -> LRU
+	// 3 -> LFU
+	private int politica_de_remocao;
 
-	public Cpu(int tamanho_da_cache) {
+	public Cpu(int tamanho_da_cache, int politica_de_remocao) {
+		this.politica_de_remocao = politica_de_remocao;
 		this.tamanho_da_cache = tamanho_da_cache;
 		this.memoria_cache = new Cache[tamanho_da_cache];
 	}
@@ -92,23 +102,31 @@ public class Cpu implements Runnable {
 	 * @return True para caso haja a instrução do CI na cache, false caso contrário.
 	 */
 	private boolean instrucaoEstaNaMemoriaCache() {
+		ArrayList<Integer> conteudo = new ArrayList<Integer>();
+		
 		// Percorre toda a cache
 		for(int i = 0; i < this.tamanho_da_cache; i++) {
 			// Verifica se o indice desse elemento é igual ao CI
-			if (this.memoria_cache[i].getIndiceDaRam() == this.CI) {
-				// Pega o conteudo do ArrayList nesse indice e joga em um vetor
-				ArrayList<Integer> conteudo = this.memoria_cache[i].conteudo;
-				int[] sinal_dado = new int[conteudo.size()];
-				for (int j = 0; j < sinal_dado.length; i++) {
-					sinal_dado[j] = conteudo.get(j);
-				}
-				// Envia para entrada de dados da propria CPU
-				this.recebeDado(sinal_dado);
-				return true;
+			if (this.memoria_cache[i].pegaIndiceDaRam() != this.CI) {
+				continue;
 			}
+			// Pega o conteudo do ArrayList nesse indice e joga em um vetor
+			conteudo.add(this.memoria_cache[i].conteudo);
 		}
 		
-		return false;
+		// Caso nao tenha na cache, CACHE MISS
+		if (conteudo.size() == 0) {
+			return false;
+		}
+		
+		int[] sinal_dado = new int[conteudo.size()];
+		for (int j = 0; j < sinal_dado.length; j++) {
+			sinal_dado[j] = conteudo.get(j);
+		}
+		// Envia para entrada de dados da propria CPU
+		this.recebeDado(sinal_dado);
+		
+		return true;
 	}
 
 	/**
@@ -461,7 +479,7 @@ public class Cpu implements Runnable {
 
 	private void pedeValorParaRam(int indice, int parametro) {
 		// Verifica se o valor ja esta na cache
-		if (!this.valorEstaNaCache(indice, parametro)) {
+		if (!this.instrucaoEstaNaCache(indice, parametro)) {
 			// Se for uma instruçao de loop, grava logo o valor do parametro
 			if (this.instrucao_atual.get(2) == 7 && indice == 1) {
 				this.valores.set(1, parametro);
@@ -497,14 +515,99 @@ public class Cpu implements Runnable {
 		}
 	}
 
-	private boolean valorEstaNaCache(int indice, int parametro) {
-		for (int i = 0; i < this.memoria_cache.length; i++) {
-			if (this.memoria_cache[i].indiceDaRam == parametro) {
-				this.valores.set(indice, this.memoria_cache[i].conteudo.get(0));
-				return true;
+	/**
+	 * Procedimento para adicionar valor unico na cache.
+	 * 
+	 * @param valor
+	 */
+	private void adicionaValorNaCache(int valor) {
+		if (!this.cacheTemEspaco(1)) {
+			this.removePosicao();
+		}
+		this.adicionaNaCache(valor);
+	}
+
+	/**
+	 * Método para remover da cache algum elemento, baseado na politica de remoção
+	 */
+	private void removePosicao() {
+		// Caso a politica seja FIFO
+		if (this.politica_de_remocao == 1) {
+			int indiceDaRamParaSerRemovido = 0;
+			int indiceParaSerRemovido = 0;
+			for(int i = 0; i < this.tamanho_da_cache; i++) {
+				Long temp = this.memoria_cache[i].pegaTimestamp();
+				if (temp < this.memoria_cache[indiceParaSerRemovido].pegaTimestamp()) {
+					indiceParaSerRemovido = i;
+					indiceDaRamParaSerRemovido = this.memoria_cache[indiceParaSerRemovido].pegaIndiceDaRam();
+				}
+			}
+			
+			for (int i = 0; i < this.tamanho_da_cache; i++) {
+				if (this.memoria_cache[i].pegaIndiceDaRam() == indiceDaRamParaSerRemovido) {
+					this.memoria_cache[i].remove();
+					this.tamanho_ocupado_cache -= 1;
+				}
 			}
 		}
+		
+		// Caso a politica seja LFU
+		if (this.politica_de_remocao == 2) {
+			
+		}
+		
+		// Caso a politica seja LRU
+		if (this.politica_de_remocao == 3) {
+			
+		}
+	}
+
+	/**
+	 * Adiciona valor unico na cache.
+	 * 
+	 * @param conteudo
+	 */
+	private void adicionaNaCache(int conteudo) {
+		int posicao = this.tamanho_ocupado_cache - 1;
+		this.memoria_cache[posicao].add(this.CI, conteudo, null);
+	}
+
+	/**
+	 * Adiciona instrução na cache.
+	 * 
+	 * @param conteudo
+	 */
+	private void adicionaNaCache(int[] conteudo) {
+		int posicao;
+		Timestamp ts = new Timestamp();
+		Long timestamp = ts.getDateTime();
+		for (int i = 0; i < conteudo.length; i++) {
+			posicao = this.tamanho_ocupado_cache - 1;
+			this.memoria_cache[posicao].add(this.CI, conteudo[i], timestamp);
+			this.tamanho_ocupado_cache++;
+		}
+	}
+
+	/**
+	 * @param espacoNecessario
+	 * @return True caso haja espaço na memoria cache, False caso contrário.
+	 */
+	private boolean cacheTemEspaco(int espacoNecessario) {
+		if (this.tamanho_ocupado_cache <= (this.tamanho_da_cache - espacoNecessario)) {
+			return true;
+		}
 		return false;
+	}
+
+	/**
+	 * @param indice_da_cache
+	 */
+	private void renovaTimestamp(int indice_da_cache, Long timestamp) {
+		if (timestamp == null) {
+			Timestamp ts = new Timestamp();
+			timestamp = ts.getDateTime();
+		}
+		this.memoria_cache[indice_da_cache].timestamp = timestamp;
 	}
 
 }

@@ -1,37 +1,47 @@
 package computer;
 
-import java.util.ArrayList;
+import com.sun.jmx.snmp.Timestamp;
 
 public class Cache {
-	public int tamanhoCache;
-	public int timestamp;
+	public Long timestamp;
 	public int indiceDaRam;
-	public ArrayList<Integer> conteudo = new ArrayList<Integer>();
+	public int conteudo;
 	
-	public int getTamanhoCache() {
-		return tamanhoCache;
-	}
-	public void setTamanhoCache(int tamanhoCache) {
-		this.tamanhoCache = tamanhoCache;
-	}
-	public int getTimestamp() {
+	public Long pegaTimestamp() {
 		return timestamp;
 	}
-	public void setTimestamp(int timestamp) {
+	public void defineTimestamp(Long timestamp) {
 		this.timestamp = timestamp;
 	}
-	public int getIndiceDaRam() {
+	
+	public int pegaIndiceDaRam() {
 		return indiceDaRam;
 	}
-	public void setIndiceDaRam(int indiceDaRam) {
+	public void defineIndiceDaRam(int indiceDaRam) {
 		this.indiceDaRam = indiceDaRam;
 	}
-	public ArrayList<Integer> getConteudo() {
+	
+	public int pegaConteudo() {
 		return conteudo;
 	}
-	public void setConteudo(ArrayList<Integer> conteudo) {
+	public void defineConteudo(int conteudo) {
 		this.conteudo = conteudo;
 	}
 	
+	public void add(int indiceDaRam, int conteudo, Long timestamp) {
+		if (timestamp == null) {
+			Timestamp ts = new Timestamp();
+			timestamp = ts.getDateTime();
+		}
+		this.defineTimestamp(timestamp);
+		this.defineConteudo(conteudo);
+		this.defineIndiceDaRam(indiceDaRam);
+	}
+	
+	public void remove() {
+		this.defineTimestamp(null);
+		this.defineConteudo(0);
+		this.defineIndiceDaRam(-1);
+	}
 	
 }
