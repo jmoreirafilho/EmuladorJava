@@ -12,11 +12,11 @@ public class Modulo {
 	public static MemoriaRam memoria_ram;
 	public static Cpu cpu;
 
-	public static void iniciaModulos(int tamanho, int largura, int clock) throws InterruptedException {
+	public static void iniciaModulos(int tamanho, int largura, int clock, int cache) throws InterruptedException {
 		barramento = new Barramento(largura, clock);
 		memoria_ram = new MemoriaRam(tamanho);
 		entrada_saida = new EntradaSaida();
-		cpu = new Cpu();
+		cpu = new Cpu(cache);
 
 		Thread b = new Thread(barramento);
 		b.start();

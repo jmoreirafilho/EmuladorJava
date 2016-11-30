@@ -1,11 +1,20 @@
 package computer;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Iterator;
+import computer.Cache;
 
 import main.Modulo;
 
 public class Cpu implements Runnable {
 	public int CI = 0;
+	public int tamanho_da_cache = 0;
+	private Cache[] memoria_cache;
+	
+//	private HashMap<Integer, ArrayList<Integer>> memoria_cache = new HashMap<Integer, ArrayList<Integer>>();
+	
 	private boolean pode_processar_instrucao = false;
 
 	private int endereco_atual;
@@ -14,7 +23,7 @@ public class Cpu implements Runnable {
 	
 	// 0 => valor do label
 	// 1 => indice do label
-	private ArrayList<Integer> ci_provisorio = new ArrayList<Integer>(); 
+	private ArrayList<Integer> ci_provisorio = new ArrayList<Integer>(Arrays.asList(-1, -1, -1));
 
 	private int registrador_a;
 	private int registrador_b;
@@ -32,6 +41,11 @@ public class Cpu implements Runnable {
 	private boolean ultimo_loop = false;
 	private boolean processamento_finalizado = false;
 
+	public Cpu(int tamanho_da_cache) {
+		this.tamanho_da_cache = tamanho_da_cache;
+		this.memoria_cache = new Cache[tamanho_da_cache];
+	}
+	
 	@Override
 	public void run() {
 		while (true) {
@@ -45,14 +59,11 @@ public class Cpu implements Runnable {
 				if (this.ultimo_loop) {
 					this.processamento_finalizado  = true;
 				}
-				System.out.println("CPU: pediu instrução ("+this.CI+")");
-				int[] sinal_controle = {NUMERO_DESSE_MODULO, 2, 0, this.CI};
-				Modulo.barramento.fila_controle.add(sinal_controle);
-				if (this.ci_provisorio.size() == 2) {
-					this.ci_provisorio.set(1, this.CI);
-				} else {
-					this.ci_provisorio.add(-1);
-					this.ci_provisorio.add(this.CI);
+				if (!this.instrucaoEstaNaMemoriaCache()) {
+					System.out.println("CPU: CACHE MISS!");
+					this.pedeInstrucaoParaRam();
+				}  else {
+					System.out.println("CPU: CACHE HIT!");
 				}
 				this.avancaCi();
 				this.pode_pedir_instrucao = false;
@@ -81,9 +92,43 @@ public class Cpu implements Runnable {
 		}
 	}
 
+	/**
+	 * @return True para caso haja a instrução do CI na cache, false caso contrário.
+	 */
+	private boolean instrucaoEstaNaMemoriaCache() {
+		// Percorre toda a cache
+		for(int i = 0; i < this.tamanho_da_cache; i++) {
+			// Verifica se o indice desse elemento é igual ao CI
+			if (this.memoria_cache[i].getIndiceDaRam() == this.CI) {
+				// Pega o conteudo do ArrayList nesse indice e joga em um vetor
+				ArrayList<Integer> conteudo = this.memoria_cache[i].conteudo;
+				int[] sinal_dado = new int[conteudo.size()];
+				for (int j = 0; j < sinal_dado.length; i++) {
+					sinal_dado[j] = conteudo.get(j);
+				}
+				// Envia para entrada de dados da propria CPU
+				this.recebeDado(sinal_dado);
+				return true;
+			}
+		}
+		
+		return false;
+	}
+
+	/**
+	 * Manda sinal de controle para memoria Ram, pedindo nova instrução.
+	 */
+	private void pedeInstrucaoParaRam() {
+		System.out.println("CPU: pediu instrução na posição "+this.CI+"");
+		int[] sinal_controle = {NUMERO_DESSE_MODULO, 2, 0, this.CI};
+		Modulo.barramento.fila_controle.add(sinal_controle);
+	}
+
 	private void gravaResultado() {
+		// Grava o resultado na Cache antes
+		
 		if (this.instrucao_atual.get(3) < -5) { // posição na memória ram
-			System.out.println("CPU: gravou resultado na RAM");
+			System.out.println("CPU: mandou sinal de controle para gravar resultado na RAM");
 			int posicao_real = (this.instrucao_atual.get(3) * -1) - 6 + (Modulo.memoria_ram.tamanho / 2);
 			int[] sinal_controle = {NUMERO_DESSE_MODULO, 2, 1, posicao_real};
 			Modulo.barramento.fila_controle.add(sinal_controle);
@@ -135,8 +180,8 @@ public class Cpu implements Runnable {
 			System.out.println("CPU: processou instrucao LABEL");
 			break;
 		case 7: // JUMP
-			this.processaJump();
 			System.out.println("CPU: processou instrucao JUMP");
+			this.processaJump();
 			break;
 		}
 	}
@@ -192,6 +237,7 @@ public class Cpu implements Runnable {
 	
 	private void processaLabel() {
 		this.ci_provisorio.set(0, this.valores.get(0));
+		this.ci_provisorio.set(1, this.CI);
 		this.preparaCpuParaProximaInstrucao();
 	}
 	
@@ -199,7 +245,7 @@ public class Cpu implements Runnable {
 		int param_1 = this.valores.get(0);
 		int simbolo_comparativo = this.valores.get(1);
 		int param_2 = this.valores.get(2);
-		int indice_do_jump = this.valores.get(3);
+		int indice_do_jump = this.instrucao_atual.get(6);
 		
 		boolean condicao = false;
 		
@@ -237,7 +283,17 @@ public class Cpu implements Runnable {
 		}
 		
 		if (condicao && this.ci_provisorio.get(0) == indice_do_jump) {
+			System.out.println("CPU: condição para loop satisfeita, pula pro indice: "+this.ci_provisorio.get(1));
 			this.CI = this.ci_provisorio.get(1);
+			this.processamento_finalizado = false;
+			this.ultimo_loop = false;
+		} else {
+			System.out.println("CPU: condição para o loop não satisfeita. Sai do loop.");
+			this.CI++;
+
+			if (this.CI >= Modulo.barramento.ultima_posicao_inserida) {
+				this.ultimo_loop = true;
+			}
 		}
 		
 		this.preparaCpuParaProximaInstrucao();
@@ -248,6 +304,7 @@ public class Cpu implements Runnable {
 	}
 
 	public void defineRegistradorA(int registrador_a) {
+		System.out.println("CPU: move "+registrador_a+" para o registrador A");
 		this.registrador_a = registrador_a;
 	}
 
@@ -256,6 +313,7 @@ public class Cpu implements Runnable {
 	}
 
 	public void defineRegistradorB(int registrador_b) {
+		System.out.println("CPU: move "+registrador_b+" para o registrador B");
 		this.registrador_b = registrador_b;
 	}
 
@@ -264,6 +322,7 @@ public class Cpu implements Runnable {
 	}
 
 	public void defineRegistradorC(int registrador_c) {
+		System.out.println("CPU: move "+registrador_c+" para o registrador C");
 		this.registrador_c = registrador_c;
 	}
 
@@ -272,6 +331,7 @@ public class Cpu implements Runnable {
 	}
 
 	public void defineRegistradorD(int registrador_d) {
+		System.out.println("CPU: move "+registrador_d+" para o registrador D");
 		this.registrador_d = registrador_d;
 	}
 
@@ -285,9 +345,6 @@ public class Cpu implements Runnable {
 		if (this.CI >= (Modulo.memoria_ram.memoria.length / 2)) {
 			this.CI = 0;
 		}
-		if (this.CI == Modulo.barramento.ultima_posicao_inserida) {
-			this.ultimo_loop = true;
-		}
 	}
 
 	/**
@@ -298,13 +355,13 @@ public class Cpu implements Runnable {
 	 * @param sinal_endereco
 	 */
 	public void recebeEndereco(int[] sinal_endereco) {
-		System.out.println("CPU: recebeu sinal de endereco: "+sinal_endereco[0]+", "+sinal_endereco[1]+", "+sinal_endereco[2]);
+		System.out.println("CPU: recebeu sinal de endereco (O: "+sinal_endereco[0]+", D: "+sinal_endereco[1]+", E: "+sinal_endereco[2]+")");
 		this.endereco_atual = sinal_endereco[2];
 		if (this.pode_mandar_dado_mov) {
 			this.mandaSinalDadoMov();
 			this.preparaCpuParaProximaInstrucao();
 		} else if (this.pode_gravar_resposta_para_ram) {
-			System.out.println("CPU: gravou sinal de dado");
+			System.out.println("CPU: mandou sinal de dado");
 			int[] sinal_dado = {2, this.endereco_atual, this.resultado};
 			Modulo.barramento.fila_dado.add(sinal_dado);
 			this.preparaCpuParaProximaInstrucao();
@@ -348,7 +405,7 @@ public class Cpu implements Runnable {
 	}
 
 	private void verificaSeInstrucaoEstaProntaParaSerProcessada() {
-		System.out.println("CPU: verifica se a instrucao esta pronta para ser utilizada ("+this.num_instrucoes_esperadas+")");
+		System.out.println("CPU: esperando por "+this.num_instrucoes_esperadas+" parametros");
 		for (int i = 0; i < this.valores.size(); i++) {
 			if (i == 0) {
 				System.out.println("---------------------------------------------------------------------------");
@@ -379,60 +436,79 @@ public class Cpu implements Runnable {
 	}
 
 	private void pegaValoresDosParametros() {
-		if (this.instrucao_atual.size() == 7) { // instrução normal
-			if (this.valores.size() == 0) {
-				for (int i = 0; i < 3; i++) {
-					this.valores.add(-1);
-				}	
-			}
-			
-			// é um mov ou imul, nao precisa pegar o primeiro valor, apenas converter
-			if (this.instrucao_atual.get(2) > 1 && this.instrucao_atual.get(2) < 4) { 
-				int posicao_real = ( this.instrucao_atual.get(3) * -1 ) - 6 + (Modulo.memoria_ram.tamanho / 2);
-				System.out.println("CPU: Converte "+this.instrucao_atual.get(3)+" para "+posicao_real);
-				this.valores.set(0, posicao_real);
-			} else {
-				this.pedeValorParaRam(0, this.instrucao_atual.get(3));
-			}
-			
-			if (this.instrucao_atual.get(4) != -1) {
-				this.pedeValorParaRam(1, this.instrucao_atual.get(4));
-			}
-			
-			if (this.instrucao_atual.get(5) != -1) {
-				this.pedeValorParaRam(2, this.instrucao_atual.get(5));
-			}
+		if (this.valores.size() == 0) {
+			for (int i = 0; i < 3; i++) {
+				this.valores.add(-1);
+			}	
+		}
+		
+		// é um mov ou imul, nao precisa pegar o primeiro valor, apenas converter
+		if (this.instrucao_atual.get(2) > 1 && this.instrucao_atual.get(2) < 4) { 
+			int posicao_real = ( this.instrucao_atual.get(3) * -1 ) - 6 + (Modulo.memoria_ram.tamanho / 2);
+			System.out.println("CPU: Converte "+this.instrucao_atual.get(3)+" para "+posicao_real);
+			this.valores.set(0, posicao_real);
+		} else {
+			// Primeiro indice, referente ao primeiro valor do parametro
+			this.pedeValorParaRam(0, this.instrucao_atual.get(3));
+		}
+		
+		if (this.instrucao_atual.get(4) != -1) {
+			// Segundo indice, referente ao segundo valor do parametro
+			this.pedeValorParaRam(1, this.instrucao_atual.get(4));
+		}
+		
+		if (this.instrucao_atual.get(5) != -1) {
+			// Terceiro indice, referente ao terceiro valor do parametro
+			this.pedeValorParaRam(2, this.instrucao_atual.get(5));
 		}
 	}
 
 	private void pedeValorParaRam(int indice, int parametro) {
-		System.out.println("CPU: computa parametro "+parametro);
-		if (parametro > -6 && parametro < -1) {
-			// registrador
-			switch (parametro) {
-			case -2:
-				this.valores.set(indice, this.pegaRegistradorA());
-				break;
-			case -3:
-				this.valores.set(indice, this.pegaRegistradorB());
-				break;
-			case -4:
-				this.valores.set(indice, this.pegaRegistradorC());
-				break;
-			case -5:
-				this.valores.set(indice, this.pegaRegistradorD());
-				break;
+		// Verifica se o valor ja esta na cache
+		if (!this.valorEstaNaCache(indice, parametro)) {
+			// Se for uma instruçao de loop, grava logo o valor do parametro
+			if (this.instrucao_atual.get(2) == 7 && indice == 1) {
+				this.valores.set(1, parametro);
+			} else {
+				System.out.println("CPU: computa parametro "+parametro);
+				if (parametro > -6 && parametro < -1) {
+					// registrador
+					switch (parametro) {
+					case -2:
+						this.valores.set(indice, this.pegaRegistradorA());
+						break;
+					case -3:
+						this.valores.set(indice, this.pegaRegistradorB());
+						break;
+					case -4:
+						this.valores.set(indice, this.pegaRegistradorC());
+						break;
+					case -5:
+						this.valores.set(indice, this.pegaRegistradorD());
+						break;
+					}
+				} else if (parametro < -5) {
+					// posição de memória
+					this.num_instrucoes_esperadas++;
+					int parametro_real = (parametro * -1) - 6 + (Modulo.memoria_ram.tamanho / 2);
+					System.out.println("CPU: manda sinal de controle para buscar parametro na posição "+parametro_real);
+					int[] sinal_de_controle = {NUMERO_DESSE_MODULO, 2, 0, parametro_real};
+					Modulo.barramento.fila_controle.add(sinal_de_controle);
+				} else {
+					this.valores.set(indice, parametro);
+				}
 			}
-		} else if (parametro < -5) {
-			// posição de memória
-			this.num_instrucoes_esperadas++;
-			int parametro_real = (parametro * -1) - 6 + (Modulo.memoria_ram.tamanho / 2);
-			System.out.println("CPU: manda sinal de controle para buscar parametro ("+parametro_real+")");
-			int[] sinal_de_controle = {NUMERO_DESSE_MODULO, 2, 0, parametro_real};
-			Modulo.barramento.fila_controle.add(sinal_de_controle);
-		} else {
-			this.valores.set(indice, parametro);
 		}
+	}
+
+	private boolean valorEstaNaCache(int indice, int parametro) {
+		for (int i = 0; i < this.memoria_cache.length; i++) {
+			if (this.memoria_cache[i].indiceDaRam == parametro) {
+				this.valores.set(indice, this.memoria_cache[i].conteudo.get(0));
+				return true;
+			}
+		}
+		return false;
 	}
 
 }

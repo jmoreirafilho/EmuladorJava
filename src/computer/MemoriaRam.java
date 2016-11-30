@@ -142,9 +142,16 @@ public class MemoriaRam implements Runnable {
 					if (posicao < 0) {
 						posicao = (posicao * -1) - 6 + (this.tamanho / 2);
 					}
-					int[] inst = { NUMERO_DESSE_MODULO, posicao, this.memoria[posicao], this.memoria[posicao + 1],
-							this.memoria[posicao + 2], this.memoria[posicao + 3], 3 };
-					Modulo.barramento.adicionaFilaDado(inst);
+					
+					if (this.memoria[posicao] == 7) {// é um loop
+						int[] inst = { NUMERO_DESSE_MODULO, posicao, this.memoria[posicao], this.memoria[posicao + 1],
+								this.memoria[posicao + 2], this.memoria[posicao + 3], this.memoria[posicao + 4], 3 };
+						Modulo.barramento.adicionaFilaDado(inst);
+					} else { // não é um loop
+						int[] inst = { NUMERO_DESSE_MODULO, posicao, this.memoria[posicao], this.memoria[posicao + 1],
+								this.memoria[posicao + 2], this.memoria[posicao + 3], 3 };
+						Modulo.barramento.adicionaFilaDado(inst);
+					}
 				} else {
 					int[] sinal_dado_pra_cpu = { 3, this.controle_cpu.get(0)[3], this.memoria[posicao] };
 					Modulo.barramento.adicionaFilaDado(sinal_dado_pra_cpu);
@@ -165,7 +172,6 @@ public class MemoriaRam implements Runnable {
 		System.out.println("RAM: recebeu sinal de controle");
 		if (sinal_controle[0] == 1) { // Veio da ES
 			this.pode_mandar_endereco_pra_es = true;
-			System.out.println(">>>>>>>>> "+sinal_controle[0]+", "+sinal_controle[1]+", "+sinal_controle[2]+", "+sinal_controle[3]);
 			this.controle_es.add(sinal_controle);
 		} else { // veio da cpu
 			this.pode_mandar_endereco_pra_cpu = true;
@@ -191,6 +197,9 @@ public class MemoriaRam implements Runnable {
 
 	private void imprimeMemoria() {
 		for (int i = 0; i < this.memoria.length; i++) {
+			if (i == (this.memoria.length / 2)) {
+				System.out.println("|");
+			}
 			System.out.print(this.memoria[i] + " | ");
 			if (i == (this.memoria.length - 1)) {
 				System.out.println("\n");

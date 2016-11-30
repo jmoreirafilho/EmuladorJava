@@ -181,7 +181,6 @@ public class Barramento implements Runnable {
 				Modulo.memoria_ram.recebeDado(sinal_dado);
 				break;
 			case 3:
-				System.out.println("BRR :::::::::::::::::::::::::: "+sinal_dado.length);
 				Modulo.cpu.recebeDado(sinal_dado);
 				break;
 			}

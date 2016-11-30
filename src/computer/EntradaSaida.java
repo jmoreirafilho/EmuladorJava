@@ -14,7 +14,7 @@ import main.Modulo;
  * @author Airton
  * Dicionario ------- 
  * 0 -> Sinal de Leitura 
- * 1 -> ADD || ES || Sinal de Gravação
+ * 1 -> ADD || ES || Sinal de GravaÃ§Ã£o
  * 2 -> MOV || RAM || Sinal de LOOP
  * 3 -> IMUL || CPU 
  * 4 -> INC 
@@ -27,7 +27,7 @@ import main.Modulo;
  * -4 -> C || >=
  * -5 -> D || <=
  * -6 -> == || Daqui pra menos ficam as
- *         posições de memória [ex: 0x004 = 4 => ((4 + 6) * -1) => -10]
+ *         posiÃ§Ãµes de memÃ³ria [ex: 0x004 = 4 => ((4 + 6) * -1) => -10]
  * -7 -> !=
  */
 public class EntradaSaida implements Runnable {
@@ -43,13 +43,13 @@ public class EntradaSaida implements Runnable {
 	private int sinal_loop = -1;
 
 	/**
-	 * Lê o arquivo e preenche a lista de instruções convertidas.
+	 * LÃª o arquivo e preenche a lista de instruÃ§Ãµes convertidas.
 	 * 
-	 * @return TRUE caso não hajam erros com nenhuma intrução, FALSE caso
-	 *         contrário.
+	 * @return TRUE caso nÃ£o hajam erros com nenhuma intruÃ§Ã£o, FALSE caso
+	 *         contrÃ¡rio.
 	 */
 	public boolean compilaArquivo() {
-		// Lê o arquivo e passa para a lista de instruções
+		// LÃª o arquivo e passa para a lista de instruÃ§Ãµes
 //		String caminho = "C:\\Users\\Airton\\workspace\\Emulador\\src\\main\\asm.txt";
 		String caminho = "C:\\Users\\Airton\\workspace\\Emulador\\src\\main\\asm2.txt";
 //		String caminho = "C:\\sistemas\\EmuladorJava\\src\\main\\asm.txt";
@@ -57,7 +57,7 @@ public class EntradaSaida implements Runnable {
 		try {
 			leitor = new BufferedReader(new FileReader(caminho));
 			while (leitor.ready()) {
-				// Valida a sintaxe de cada instrução
+				// Valida a sintaxe de cada instruÃ§Ã£o
 				if (!this.analisadorSintatico(leitor.readLine().toLowerCase())) {
 					return false;
 				}
@@ -80,7 +80,7 @@ public class EntradaSaida implements Runnable {
 
 		int contador_de_instrucoes_enviadas = 0;
 
-		// origem, ação, endereço
+		// origem, aÃ§Ã£o, endereÃ§o
 		int[] sinal_controle = { NUMERO_DESSE_MODULO, 2, 1, -1 };
 
 		while (true) {
@@ -113,7 +113,7 @@ public class EntradaSaida implements Runnable {
 					// Pega o comando em buffer, de acordo com o CI da CPU
 					int[] sinal_dado = this.buffer(contador_de_instrucoes_enviadas);
 
-					// Adiciona o destino e o endereço na fila de dado local
+					// Adiciona o destino e o endereÃ§o na fila de dado local
 					sinal_dado[0] = NUMERO_DESSE_MODULO;
 					sinal_dado[1] = this.endereco_atual.get(0);
 
@@ -127,7 +127,7 @@ public class EntradaSaida implements Runnable {
 				this.pode_mandar_sinal_de_dado = false;
 			}
 
-			// Se o contador de instrucoes enviadas ler a última instrução, mata
+			// Se o contador de instrucoes enviadas ler a Ãºltima instruÃ§Ã£o, mata
 			// a thread de entrada e saida
 			if (contador_de_instrucoes_enviadas >= this.instrucoes_convertidas.size()) {
 				System.out.println("Thread ES acabou!");
@@ -176,10 +176,10 @@ public class EntradaSaida implements Runnable {
 	}
 
 	/**
-	 * Busca a instrução compilada na posição parametrizada.
+	 * Busca a instruÃ§Ã£o compilada na posiÃ§Ã£o parametrizada.
 	 * 
 	 * @param contador_instrucao
-	 * @return Instrução compilada.
+	 * @return InstruÃ§Ã£o compilada.
 	 */
 	public int[] buffer(int contador_instrucao) {
 		if (contador_instrucao >= instrucoes_convertidas.size()) {
@@ -189,12 +189,12 @@ public class EntradaSaida implements Runnable {
 	}
 
 	/**
-	 * Analisa se há algum erro na instrução parametrizada e, caso não haja,
-	 * adiciona a intrução na fila de intruções convertidas.
+	 * Analisa se hÃ¡ algum erro na instruÃ§Ã£o parametrizada e, caso nÃ£o haja,
+	 * adiciona a intruÃ§Ã£o na fila de intruÃ§Ãµes convertidas.
 	 * 
 	 * @param comando
-	 * @return TRUE caso a instrução for adicionada na fila de instruções
-	 *         convetidas, FALSE se houver algum erro na instrução.
+	 * @return TRUE caso a instruÃ§Ã£o for adicionada na fila de instruÃ§Ãµes
+	 *         convetidas, FALSE se houver algum erro na instruÃ§Ã£o.
 	 */
 	public boolean analisadorSintatico(String comando) {
 		Matcher acerto_add = Pattern.compile("^add\\s+(\\w+)\\s*,\\s*(\\w+)\\s*$").matcher(comando);
@@ -235,7 +235,7 @@ public class EntradaSaida implements Runnable {
 	 * valor.
 	 * 
 	 * @param valor
-	 * @return Valor convertido em inteiro ou NULL caso o valor não seja válido.
+	 * @return Valor convertido em inteiro ou NULL caso o valor nÃ£o seja vÃ¡lido.
 	 */
 	public Integer converteValor(String valor) {
 		if (valor.length() > 2 && (valor.substring(0, 2)).equals("0x")) {
@@ -279,11 +279,11 @@ public class EntradaSaida implements Runnable {
 	}
 
 	/**
-	 * Converte instrução ADD para números representativos.
+	 * Converte instruÃ§Ã£o ADD para nÃºmeros representativos.
 	 * 
 	 * @param acerto
 	 * @return Vetor de inteiros convertidos ou NULL caso haja erro na
-	 *         transformação de algum valor.
+	 *         transformaÃ§Ã£o de algum valor.
 	 */
 	private int[] converteComandoAdd(Matcher acerto) {
 		Integer valor1 = this.converteValor(acerto.group(1));
@@ -296,11 +296,11 @@ public class EntradaSaida implements Runnable {
 	}
 
 	/**
-	 * Converte instrução MOV para números representativos.
+	 * Converte instruÃ§Ã£o MOV para nÃºmeros representativos.
 	 * 
 	 * @param acerto
 	 * @return Vetor de inteiros convertidos ou NULL caso haja erro na
-	 *         transformação de algum valor.
+	 *         transformaÃ§Ã£o de algum valor.
 	 */
 	private int[] converteComandoMov(Matcher acerto) {
 		Integer valor1 = this.converteValor(acerto.group(1));
@@ -313,11 +313,11 @@ public class EntradaSaida implements Runnable {
 	}
 
 	/**
-	 * Converte instrução IMUL para números representativos.
+	 * Converte instruÃ§Ã£o IMUL para nÃºmeros representativos.
 	 * 
 	 * @param acerto
 	 * @return Vetor de inteiros convertidos ou NULL caso haja erro na
-	 *         transformação de algum valor.
+	 *         transformaÃ§Ã£o de algum valor.
 	 */
 	private int[] converteComandoImul(Matcher acerto) {
 		Integer valor1 = this.converteValor(acerto.group(1));
@@ -331,11 +331,11 @@ public class EntradaSaida implements Runnable {
 	}
 
 	/**
-	 * Converte instrução INC para números representativos.
+	 * Converte instruÃ§Ã£o INC para nÃºmeros representativos.
 	 * 
 	 * @param acerto
 	 * @return Vetor de inteiros convertidos ou NULL caso haja erro na
-	 *         transformação de algum valor.
+	 *         transformaÃ§Ã£o de algum valor.
 	 */
 	private int[] converteComandoInc(Matcher acerto) {
 		Integer valor1 = this.converteValor(acerto.group(1));
@@ -347,11 +347,11 @@ public class EntradaSaida implements Runnable {
 	}
 
 	/**
-	 * Converte instrução DEC para números representativos.
+	 * Converte instruÃ§Ã£o DEC para nÃºmeros representativos.
 	 * 
 	 * @param acerto
 	 * @return Vetor de inteiros convertidos ou NULL caso haja erro na
-	 *         transformação de algum valor.
+	 *         transformaÃ§Ã£o de algum valor.
 	 */
 	private int[] converteComandoDec(Matcher acerto) {
 		Integer valor1 = this.converteValor(acerto.group(1));
@@ -363,11 +363,11 @@ public class EntradaSaida implements Runnable {
 	}
 	
 	/**
-	 * Converte instrução LABEL para números representativos.
+	 * Converte instruÃ§Ã£o LABEL para nÃºmeros representativos.
 	 * 
 	 * @param acerto
 	 * @return Vetor de inteiros convertidos ou NULL caso haja erro na
-	 *         transformação de algum valor.
+	 *         transformaÃ§Ã£o de algum valor.
 	 */
 	private int[] converteComandoLabel(Matcher acerto) {
 		Integer valor1 = this.converteValor(acerto.group(1));
@@ -379,11 +379,11 @@ public class EntradaSaida implements Runnable {
 	}
 	
 	/**
-	 * Converte instrução JUMP para números representativos.
+	 * Converte instruÃ§Ã£o JUMP para nÃºmeros representativos.
 	 * 
 	 * @param acerto
 	 * @return Vetor de inteiros convertidos ou NULL caso haja erro na
-	 *         transformação de algum valor.
+	 *         transformaÃ§Ã£o de algum valor.
 	 */
 	private int[] converteComandoJump(Matcher acerto) {
 		Integer valor1 = this.converteValor(acerto.group(1));
@@ -398,7 +398,7 @@ public class EntradaSaida implements Runnable {
 	}
 
 	/**
-	 * Recebe um sinal de endereço e deve mandar um sinal de dado, pela Thread
+	 * Recebe um sinal de endereÃ§o e deve mandar um sinal de dado, pela Thread
 	 * 
 	 * @param sinal_controle
 	 */
