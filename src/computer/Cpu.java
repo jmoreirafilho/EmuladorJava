@@ -2,8 +2,6 @@ package computer;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Iterator;
 import computer.Cache;
 
 import main.Modulo;
@@ -12,8 +10,6 @@ public class Cpu implements Runnable {
 	public int CI = 0;
 	public int tamanho_da_cache = 0;
 	private Cache[] memoria_cache;
-	
-//	private HashMap<Integer, ArrayList<Integer>> memoria_cache = new HashMap<Integer, ArrayList<Integer>>();
 	
 	private boolean pode_processar_instrucao = false;
 
