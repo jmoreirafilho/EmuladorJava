@@ -65,12 +65,13 @@ public class Cpu implements Runnable {
 				if (this.ultimo_loop) {
 					this.processamento_finalizado  = true;
 				}
-				if (!this.instrucaoEstaNaMemoriaCache()) {
-					System.out.println("CPU: CACHE MISS!");
+				
+				if (this.instrucao_atual.size() > 0 && !this.instrucaoEstaNaMemoriaCache()) {
+					this.adicionaInstrucaoNaCache();
+				} else {
 					this.pedeInstrucaoParaRam();
-				}  else {
-					System.out.println("CPU: CACHE HIT!");
 				}
+				
 				this.avancaCi();
 				this.pode_pedir_instrucao = false;
 			}
@@ -98,6 +99,28 @@ public class Cpu implements Runnable {
 		}
 	}
 
+	private void adicionaInstrucaoNaCache() {
+		int endereco = this.instrucao_atual.get(1);
+		
+		ArrayList<Integer> temp_instrucao_atual = this.instrucao_atual;
+		
+		while(!this.cacheTemEspaco(this.instrucao_atual.size())){
+			this.removeElementoDaCache();
+		}
+		
+		Timestamp ts = new Timestamp();
+	
+		for (int i = 0; i < this.tamanho_da_cache; i++) {
+			if (this.memoria_cache[i].pegaIndiceDaRam() == -1) {
+				this.memoria_cache[i].add(endereco, temp_instrucao_atual.get(0), ts.getDateTime());
+				temp_instrucao_atual.remove(0);
+				if (temp_instrucao_atual.size() <= 0) {
+					break;
+				}
+			}
+		}
+	}
+
 	/**
 	 * @return True para caso haja a instrução do CI na cache, false caso contrário.
 	 */
@@ -110,12 +133,14 @@ public class Cpu implements Runnable {
 			if (this.memoria_cache[i].pegaIndiceDaRam() != this.CI) {
 				continue;
 			}
+			
 			// Pega o conteudo do ArrayList nesse indice e joga em um vetor
+			System.out.println("CPU: cache HIT de instrucao!");
 			conteudo.add(this.memoria_cache[i].conteudo);
 		}
 		
-		// Caso nao tenha na cache, CACHE MISS
 		if (conteudo.size() == 0) {
+			System.out.println("CPU: cache MISS de instrucao!");
 			return false;
 		}
 		
@@ -123,9 +148,10 @@ public class Cpu implements Runnable {
 		for (int j = 0; j < sinal_dado.length; j++) {
 			sinal_dado[j] = conteudo.get(j);
 		}
-		// Envia para entrada de dados da propria CPU
-		this.recebeDado(sinal_dado);
 		
+		// Ao inves de mandar sinal de controle e esperar a instrução,
+		// manda a instrução direto pro metodo de entrada de dados da CPU.
+		this.recebeDado(sinal_dado);
 		return true;
 	}
 
@@ -407,7 +433,7 @@ public class Cpu implements Runnable {
 	public void recebeDado(int[] sinal_dado) {
 		System.out.println("CPU: recebeu sinal de dado");
 		if (sinal_dado.length == 3) { // É um valor
-			this.adicionaNaPrimeiraPosicaoDeValoresDisponivel(sinal_dado[2]);
+			this.adicionaNaPrimeiraPosicaoDeValoresDisponivel(sinal_dado[1], sinal_dado[2]);
 			this.num_instrucoes_esperadas--;
 		} else { // É uma instrução
 			for (int i = 0; i < sinal_dado.length; i++) {
@@ -435,12 +461,15 @@ public class Cpu implements Runnable {
 		}
 	}
 
-	private void adicionaNaPrimeiraPosicaoDeValoresDisponivel(int valor) {
+	private void adicionaNaPrimeiraPosicaoDeValoresDisponivel(int endereco, int valor) {
 		System.out.println("CPU: recebeu um valor para um parametro buscado");
 		boolean pode_adicionar = true;
 		for (int i = 0; i < this.valores.size(); i++) {
 			if (this.valores.size() > 0 && this.valores.get(i) == -1 && pode_adicionar) {
 				pode_adicionar = false;
+				
+				// Adiciona valor recebido na cache
+				this.verificaParaAdicionarNaCache(endereco, valor);
 				
 				// adiciona o valor
 				System.out.println("CPU: adicionou "+valor+" na posicao "+i);
@@ -479,7 +508,6 @@ public class Cpu implements Runnable {
 
 	private void pedeValorParaRam(int indice, int parametro) {
 		// Verifica se o valor ja esta na cache
-		if (!this.instrucaoEstaNaCache(indice, parametro)) {
 			// Se for uma instruçao de loop, grava logo o valor do parametro
 			if (this.instrucao_atual.get(2) == 7 && indice == 1) {
 				this.valores.set(1, parametro);
@@ -503,60 +531,97 @@ public class Cpu implements Runnable {
 					}
 				} else if (parametro < -5) {
 					// posição de memória
-					this.num_instrucoes_esperadas++;
 					int parametro_real = (parametro * -1) - 6 + (Modulo.memoria_ram.tamanho / 2);
-					System.out.println("CPU: manda sinal de controle para buscar parametro na posição "+parametro_real);
-					int[] sinal_de_controle = {NUMERO_DESSE_MODULO, 2, 0, parametro_real};
-					Modulo.barramento.fila_controle.add(sinal_de_controle);
+					this.instrucaoEstaNaCache(indice, parametro_real);
 				} else {
 					this.valores.set(indice, parametro);
 				}
 			}
+	}
+
+	private void instrucaoEstaNaCache(int indice, int parametro_real) {
+		for(int i = 0; i < this.tamanho_da_cache; i++) {
+			if (i == 0) {
+				System.out.println("\n");
+			}
+			
+			System.out.print(this.memoria_cache[i].pegaIndiceDaRam()+" -- ");
+			
+			if (i == (this.tamanho_da_cache - 1)) {
+				System.out.println("\n");
+			}
+		}
+		
+		boolean hit = false;
+		
+		for(int i = 0; i < this.tamanho_da_cache; i++) {
+			if (this.memoria_cache[i].pegaIndiceDaRam() == parametro_real) {
+				this.valores.set(indice, this.memoria_cache[i].conteudo);
+				System.out.println("CPU: cache HIT para valor na posicao "+parametro_real);
+				hit = true;
+			}
+		}
+		
+		if (hit) {
+			System.out.println("CPU: cache MISS para valor na posicao "+parametro_real);
+			this.num_instrucoes_esperadas++;
+			System.out.println("CPU: manda sinal de controle para buscar parametro na posição "+parametro_real);
+			int[] sinal_de_controle = {NUMERO_DESSE_MODULO, 2, 0, parametro_real};
+			Modulo.barramento.fila_controle.add(sinal_de_controle);
 		}
 	}
 
 	/**
 	 * Procedimento para adicionar valor unico na cache.
 	 * 
+	 * @param endereco
 	 * @param valor
 	 */
-	private void adicionaValorNaCache(int valor) {
-		if (!this.cacheTemEspaco(1)) {
-			this.removePosicao();
+	private void adicionaValorNaCache(int endereco, int valor) {
+		while (!this.cacheTemEspaco(1)) {
+			this.removeElementoDaCache();
 		}
-		this.adicionaNaCache(valor);
+		
+		for (int i = 0; i < this.tamanho_da_cache; i++) {
+			if (this.memoria_cache[i].pegaIndiceDaRam() == -1) {
+				this.memoria_cache[i].add(endereco, valor, null);
+			}
+		}
 	}
 
 	/**
-	 * Método para remover da cache algum elemento, baseado na politica de remoção
+	 * Método para remover da cache algum elemento, baseado na politica de remoção.
+	 * Esse elemento pode ser uma instrução inteira ou apenas um unico elemento.
 	 */
-	private void removePosicao() {
+	private void removeElementoDaCache() {
 		// Caso a politica seja FIFO
 		if (this.politica_de_remocao == 1) {
-			int indiceDaRamParaSerRemovido = 0;
-			int indiceParaSerRemovido = 0;
+			int indice_da_ram_para_ser_removido = 0, indice_para_ser_removido = 0;
+
+			// Percorre o elemento mais antigo e pega o indiceDaRam dele
 			for(int i = 0; i < this.tamanho_da_cache; i++) {
 				Long temp = this.memoria_cache[i].pegaTimestamp();
-				if (temp < this.memoria_cache[indiceParaSerRemovido].pegaTimestamp()) {
-					indiceParaSerRemovido = i;
-					indiceDaRamParaSerRemovido = this.memoria_cache[indiceParaSerRemovido].pegaIndiceDaRam();
+				if (temp < this.memoria_cache[indice_para_ser_removido].pegaTimestamp()) {
+					indice_para_ser_removido = i;
+					indice_da_ram_para_ser_removido = this.memoria_cache[indice_para_ser_removido].pegaIndiceDaRam();
 				}
 			}
 			
+			// Remove o(s) elemento(s) mais antigo(os)
 			for (int i = 0; i < this.tamanho_da_cache; i++) {
-				if (this.memoria_cache[i].pegaIndiceDaRam() == indiceDaRamParaSerRemovido) {
+				if (this.memoria_cache[i].pegaIndiceDaRam() == indice_da_ram_para_ser_removido) {
 					this.memoria_cache[i].remove();
 					this.tamanho_ocupado_cache -= 1;
 				}
 			}
 		}
 		
-		// Caso a politica seja LFU
+		// Caso a politica seja LRU
 		if (this.politica_de_remocao == 2) {
 			
 		}
 		
-		// Caso a politica seja LRU
+		// Caso a politica seja LFU
 		if (this.politica_de_remocao == 3) {
 			
 		}
@@ -567,47 +632,36 @@ public class Cpu implements Runnable {
 	 * 
 	 * @param conteudo
 	 */
-	private void adicionaNaCache(int conteudo) {
-		int posicao = this.tamanho_ocupado_cache - 1;
-		this.memoria_cache[posicao].add(this.CI, conteudo, null);
-	}
-
-	/**
-	 * Adiciona instrução na cache.
-	 * 
-	 * @param conteudo
-	 */
-	private void adicionaNaCache(int[] conteudo) {
-		int posicao;
-		Timestamp ts = new Timestamp();
-		Long timestamp = ts.getDateTime();
-		for (int i = 0; i < conteudo.length; i++) {
-			posicao = this.tamanho_ocupado_cache - 1;
-			this.memoria_cache[posicao].add(this.CI, conteudo[i], timestamp);
-			this.tamanho_ocupado_cache++;
+	private void verificaParaAdicionarNaCache(int endereco, int conteudo) {
+		boolean deve_adicionar = true;
+		
+		// Verifica se ja esta na cache
+		for(int i = 0; i < this.tamanho_da_cache; i++){
+			if (this.memoria_cache[i].pegaConteudo() == conteudo) {
+				this.memoria_cache[i].renova();
+				deve_adicionar = false;
+				break;
+			}
 		}
+		
+		// Caso não esteja na cache, adiciona
+		if (deve_adicionar) {
+			this.adicionaValorNaCache(endereco, conteudo);
+		}
+		int posicao = this.tamanho_ocupado_cache - 1;
+		this.memoria_cache[posicao].add(endereco, conteudo, null);
 	}
 
 	/**
-	 * @param espacoNecessario
+	 * @param espaco_necessario
 	 * @return True caso haja espaço na memoria cache, False caso contrário.
 	 */
-	private boolean cacheTemEspaco(int espacoNecessario) {
-		if (this.tamanho_ocupado_cache <= (this.tamanho_da_cache - espacoNecessario)) {
+	private boolean cacheTemEspaco(int espaco_necessario) {
+		int espaco_real = this.tamanho_da_cache - this.tamanho_ocupado_cache;
+		if (espaco_necessario <= espaco_real) {
 			return true;
 		}
 		return false;
-	}
-
-	/**
-	 * @param indice_da_cache
-	 */
-	private void renovaTimestamp(int indice_da_cache, Long timestamp) {
-		if (timestamp == null) {
-			Timestamp ts = new Timestamp();
-			timestamp = ts.getDateTime();
-		}
-		this.memoria_cache[indice_da_cache].timestamp = timestamp;
 	}
 
 }

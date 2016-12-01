@@ -44,4 +44,9 @@ public class Cache {
 		this.defineIndiceDaRam(-1);
 	}
 	
+	public void renova() {
+		Timestamp ts = new Timestamp();
+		this.defineTimestamp(ts.getDateTime());
+	}
+	
 }
