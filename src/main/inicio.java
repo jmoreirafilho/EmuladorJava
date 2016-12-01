@@ -7,7 +7,7 @@ public class inicio {
 	private static Scanner scanner;
 
 	public static void main(String[] args) {
-		int tamanho = 0, largura = 0, clock = 0, cachePct = 0, cacheTamanho = 0, politica = 0;
+		int tamanho = 0, largura = 0, clock = 0, cachePct = 0, politica = 0;
 
 		scanner = new Scanner(System.in);
 		
@@ -23,8 +23,8 @@ public class inicio {
 		System.out.println("\nTamanho da memória cache (percentual): ");
 		cachePct = scanner.nextInt();
 
-		cacheTamanho = (cachePct / 100) * tamanho;
-
+		int cacheTamanho = (int)((cachePct * tamanho) / 100);
+		
 		System.out.print("\nQual politica deseja utilizar?\n1 -> FIFO\n2 -> LRU\n3 -> LFU\n -> ");
 		politica = scanner.nextInt();
 		
