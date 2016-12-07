@@ -3,12 +3,17 @@ package main;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 
 public class Logs {
-	private String local_do_log = "C:\\Sistemas\\EmuladorJava\\src\\main\\logs.txt";
+//	private String local_do_log = "C:\\Sistemas\\EmuladorJava\\src\\main\\logs.txt";
+	private String local_do_log = "C:\\Users\\Airton\\workspace\\Emulador\\src\\main\\";
 	
-	public Logs() {
+	public Logs(String nome_arquivo) {
 		// Deleta arquivo, caso exista
+		this.local_do_log += nome_arquivo;
 		File arquivo = new File(this.local_do_log);
 		arquivo.delete();
 		
@@ -19,19 +24,16 @@ public class Logs {
 			arq.close();
 		} catch (IOException e) {
 			e.printStackTrace();
-			System.out.println("Erro ao criar arquivo de logs!");
+			System.out.println("Erro ao criar arquivo "+nome_arquivo+" de log!");
 		}
 	}
 	
 	public void add(String linha) {
-		FileWriter arquivo;
+		linha = "\n" + linha;
 		try {
-			arquivo = new FileWriter(this.local_do_log);
-			arquivo.write(linha);
-			arquivo.close();
+			Files.write(Paths.get(this.local_do_log), linha.getBytes(), StandardOpenOption.APPEND);
 		} catch (IOException e) {
 			e.printStackTrace();
-			System.out.println("Erro ao gravar arquivo!");
 		}
 	}
 }

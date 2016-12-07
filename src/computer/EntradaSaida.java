@@ -51,9 +51,9 @@ public class EntradaSaida implements Runnable {
 	public boolean compilaArquivo() {
 		// Lê o arquivo e passa para a lista de instruções
 //		String caminho = "C:\\Users\\Airton\\workspace\\Emulador\\src\\main\\asm.txt";
-//		String caminho = "C:\\Users\\Airton\\workspace\\Emulador\\src\\main\\asm2.txt";
+		String caminho = "C:\\Users\\Airton\\workspace\\Emulador\\src\\main\\asm2.txt";
 //		String caminho = "C:\\Sistemas\\EmuladorJava\\src\\main\\asm.txt";
-		String caminho = "C:\\Sistemas\\EmuladorJava\\src\\main\\asm2.txt";
+//		String caminho = "C:\\Sistemas\\EmuladorJava\\src\\main\\asm2.txt";
 		try {
 			leitor = new BufferedReader(new FileReader(caminho));
 			while (leitor.ready()) {

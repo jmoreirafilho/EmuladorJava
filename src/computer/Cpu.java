@@ -10,7 +10,8 @@ import main.Logs;
 import main.Modulo;
 
 public class Cpu implements Runnable {
-	private Logs logger = new Logs();
+	private Logs logger = new Logs("cpu.txt");
+	private Logs logger_cache = new Logs("cache.txt");
 	
 	public int CI = 0;
 	public int tamanho_da_cache = 0;
@@ -68,19 +69,21 @@ public class Cpu implements Runnable {
 					this.processamento_finalizado  = true;
 				}
 				
-				if (this.instrucao_atual.size() > 0 && !this.instrucaoEstaNaMemoriaCache()) {
-					this.adicionaInstrucaoNaCache();
-				} else {
+				if (this.tamanho_ocupado_cache == 0 || (this.tamanho_ocupado_cache > 0 && !this.instrucaoEstaNaMemoriaCache())) {
 					this.pedeInstrucaoParaRam();
 				}
 				
 				this.avancaCi();
 				this.pode_pedir_instrucao = false;
 			}
-
+			
 			// Processa uma instrução
 			if (this.pode_processar_instrucao) {
-				this.processaInstrucao();
+				if (this.instrucao_atual.size() > 0) {
+					this.processaInstrucao();
+				} else {
+					System.out.println("NAO TEM INSTRUCAO NESSA MERDA");
+				}
 				this.pode_processar_instrucao = false;
 			}
 			
@@ -113,9 +116,15 @@ public class Cpu implements Runnable {
 		
 		Timestamp ts = new Timestamp();
 	
+		Long time = ts.getDateTime();
+		
 		for (int i = 0; i < this.tamanho_da_cache; i++) {
-			if (this.memoria_cache[i] != null && this.memoria_cache[i].pegaIndiceDaRam() == -1) {
-				this.memoria_cache[i].add(endereco, temp_instrucao_atual.get(0), ts.getDateTime());
+			logger_cache.add("verifica se a posicao "+i+" da cache está vazia para adicionar instrucao "+temp_instrucao_atual.get(0));
+			if (this.memoria_cache[i] == null || this.memoria_cache[i].pegaIndiceDaRam() == -1) {
+				logger_cache.add("Adicionou: "+temp_instrucao_atual.get(0));
+				this.memoria_cache[i] = new Cache();
+				this.memoria_cache[i].add(endereco, temp_instrucao_atual.get(0), time);
+				this.tamanho_ocupado_cache++;
 				temp_instrucao_atual.remove(0);
 				if (temp_instrucao_atual.size() <= 0) {
 					break;
@@ -132,8 +141,12 @@ public class Cpu implements Runnable {
 		
 		// Percorre toda a cache
 		for(int i = 0; i < this.tamanho_da_cache; i++) {
+			if (this.memoria_cache[i] != null) {
+				logger_cache.add("Buscou na cache, comparando: "+this.memoria_cache[i].pegaIndiceDaRam()+" com "+this.CI);
+			}
+			
 			// Verifica se o indice desse elemento é igual ao CI
-			if (this.memoria_cache[i] != null && this.memoria_cache[i].pegaIndiceDaRam() != this.CI) {
+			if (this.memoria_cache[i] != null && this.memoria_cache[i].pegaIndiceDaRam() == this.CI) {
 				continue;
 			}
 			
@@ -145,6 +158,7 @@ public class Cpu implements Runnable {
 		
 		if (conteudo.size() == 0) {
 			System.out.println("CPU: cache MISS de instrucao!");
+			logger_cache.add("Não encontrou a instrução!");
 			logger.add("CPU: cache MISS de instrucao!");
 			return false;
 		}
@@ -429,7 +443,6 @@ public class Cpu implements Runnable {
 	}
 
 	private void preparaCpuParaProximaInstrucao() {
-		this.instrucao_atual.clear();
 		this.valores.clear();
 		this.pode_pedir_instrucao = true;
 		this.pode_gravar_resposta_para_ram = false;
@@ -461,6 +474,9 @@ public class Cpu implements Runnable {
 		} else { // É uma instrução
 			System.out.print("CPU: recebeu sinal de dado -> Instrucao: ");
 			logger.add("CPU: recebeu sinal de dado -> Instrucao: ");
+			if (this.instrucao_atual.size() > 0) {
+				this.instrucao_atual.clear();
+			}
 			for (int i = 0; i < sinal_dado.length; i++) {
 				System.out.print(sinal_dado[i] + " | ");
 				logger.add(sinal_dado[i] + " | ");
@@ -468,6 +484,7 @@ public class Cpu implements Runnable {
 			}
 			System.out.print("\n");
 			this.pegaValoresDosParametros();
+			this.adicionaInstrucaoNaCache();
 		}
 		this.verificaSeInstrucaoEstaProntaParaSerProcessada();
 	}
@@ -483,9 +500,7 @@ public class Cpu implements Runnable {
 		}
 		System.out.println("");
 		
-		if (this.instrucao_atual.size() > 0 && this.instrucao_atual.get(2) > 0 
-				&& this.instrucao_atual.get(2) < 8 && this.valores.size() == 3 
-				&& this.num_instrucoes_esperadas == 0) {
+		if (this.num_instrucoes_esperadas == 0) {
 			this.pode_processar_instrucao = true;
 		}
 	}
@@ -632,6 +647,7 @@ public class Cpu implements Runnable {
 		for (int i = 0; i < this.tamanho_da_cache; i++) {
 			if (this.memoria_cache[i] != null && this.memoria_cache[i].pegaIndiceDaRam() == -1) {
 				this.memoria_cache[i].add(endereco, valor, null);
+				this.tamanho_ocupado_cache++;
 			}
 		}
 	}
@@ -684,10 +700,14 @@ public class Cpu implements Runnable {
 		
 		// Verifica se ja esta na cache
 		for(int i = 0; i < this.tamanho_da_cache; i++){
-			if (this.memoria_cache[i] != null && this.memoria_cache[i].pegaConteudo() == conteudo) {
-				this.memoria_cache[i].renova();
-				deve_adicionar = false;
-				break;
+			if (this.memoria_cache[i] != null) {
+				logger_cache.add("Verifica se "+this.memoria_cache[i].pegaConteudo()+" é igual a "+conteudo);
+				if (this.memoria_cache[i].pegaConteudo() == conteudo) {
+					logger_cache.add("Renova o dado na cache!");
+					this.memoria_cache[i].renova();
+					deve_adicionar = false;
+					break;
+				}
 			}
 		}
 		
@@ -696,7 +716,6 @@ public class Cpu implements Runnable {
 			this.adicionaValorNaCache(endereco, conteudo);
 		}
 		
-//		this.memoria_cache[this.tamanho_ocupado_cache].add(endereco, conteudo, null);
 	}
 
 	/**
@@ -705,9 +724,12 @@ public class Cpu implements Runnable {
 	 */
 	private boolean cacheTemEspaco(int espaco_necessario) {
 		int espaco_real = this.tamanho_da_cache - this.tamanho_ocupado_cache;
+		logger_cache.add("Verifica se tem espaço na cache (precisa de "+espaco_necessario+", tem "+espaco_real+")");
 		if (espaco_necessario <= espaco_real) {
+			logger_cache.add("Tem espaço na cache (precisa de "+espaco_necessario+", tem "+espaco_real+")");
 			return true;
 		}
+		logger_cache.add("Não tem espaco na cache (precisa de "+espaco_necessario+", tem "+espaco_real+")");
 		return false;
 	}
 
