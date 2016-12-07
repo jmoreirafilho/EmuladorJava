@@ -108,8 +108,14 @@ public class Cpu implements Runnable {
 	private void adicionaInstrucaoNaCache() {
 		int endereco = this.instrucao_atual.get(1);
 		
-		ArrayList<Integer> temp_instrucao_atual = this.instrucao_atual;
+		System.out.println("\n\n\n\nADICIONOU NA CACHE!!\n\n\n\n");
 		
+		ArrayList<Integer> temp_instrucao_atual = new ArrayList<Integer>();
+		for (int i = 0; i < this.instrucao_atual.size(); i++) {
+			temp_instrucao_atual.add(this.instrucao_atual.get(i));
+		}
+		
+		logger_cache.add("Tamanho da instrucao atual é de: "+this.instrucao_atual.size());
 		while(!this.cacheTemEspaco(this.instrucao_atual.size())){
 			this.removeElementoDaCache();
 		}
@@ -122,6 +128,7 @@ public class Cpu implements Runnable {
 			logger_cache.add("verifica se a posicao "+i+" da cache está vazia para adicionar instrucao "+temp_instrucao_atual.get(0));
 			if (this.memoria_cache[i] == null || this.memoria_cache[i].pegaIndiceDaRam() == -1) {
 				logger_cache.add("Adicionou: "+temp_instrucao_atual.get(0));
+				logger_cache.add("Adicionando endereco> "+endereco+", valor> "+temp_instrucao_atual.get(0)+", ts>"+time);
 				this.memoria_cache[i] = new Cache();
 				this.memoria_cache[i].add(endereco, temp_instrucao_atual.get(0), time);
 				this.tamanho_ocupado_cache++;
@@ -143,22 +150,22 @@ public class Cpu implements Runnable {
 		for(int i = 0; i < this.tamanho_da_cache; i++) {
 			if (this.memoria_cache[i] != null) {
 				logger_cache.add("Buscou na cache, comparando: "+this.memoria_cache[i].pegaIndiceDaRam()+" com "+this.CI);
+				
+				// Verifica se o indice desse elemento é igual ao CI
+				if (this.memoria_cache[i].pegaIndiceDaRam() == this.CI) {
+					// Pega o conteudo do ArrayList nesse indice e joga em um vetor
+					System.out.println("CPU: cache HIT de instrucao!");
+					logger.add("CPU: cache HIT de instrucao!");
+					logger_cache.add("Cache HIT de instrução!");
+					conteudo.add(this.memoria_cache[i].conteudo);
+					continue;
+				}
 			}
-			
-			// Verifica se o indice desse elemento é igual ao CI
-			if (this.memoria_cache[i] != null && this.memoria_cache[i].pegaIndiceDaRam() == this.CI) {
-				continue;
-			}
-			
-			// Pega o conteudo do ArrayList nesse indice e joga em um vetor
-			System.out.println("CPU: cache HIT de instrucao!");
-			logger.add("CPU: cache HIT de instrucao!");
-			conteudo.add(this.memoria_cache[i].conteudo);
 		}
 		
 		if (conteudo.size() == 0) {
 			System.out.println("CPU: cache MISS de instrucao!");
-			logger_cache.add("Não encontrou a instrução!");
+			logger_cache.add("Cache MISS de instrucao!");
 			logger.add("CPU: cache MISS de instrucao!");
 			return false;
 		}
@@ -474,13 +481,16 @@ public class Cpu implements Runnable {
 		} else { // É uma instrução
 			System.out.print("CPU: recebeu sinal de dado -> Instrucao: ");
 			logger.add("CPU: recebeu sinal de dado -> Instrucao: ");
-			if (this.instrucao_atual.size() > 0) {
-				this.instrucao_atual.clear();
-			}
+			this.instrucao_atual.clear();
 			for (int i = 0; i < sinal_dado.length; i++) {
 				System.out.print(sinal_dado[i] + " | ");
 				logger.add(sinal_dado[i] + " | ");
 				this.instrucao_atual.add(sinal_dado[i]);
+			}
+			if (this.instrucao_atual.size() > 0) {
+				System.out.println("\n\n\n\nACABOU DE ADICIONAR UMA INSTRUCAO\n\n\n\n");
+			} else {
+				System.out.println("\n\n\n\nNAO ADICIONOU A INSTRUCAO\n\n\n\n");
 			}
 			System.out.print("\n");
 			this.pegaValoresDosParametros();
@@ -610,6 +620,7 @@ public class Cpu implements Runnable {
 					this.valores.set(indice, this.memoria_cache[i].conteudo);
 					System.out.println("CPU: cache HIT para valor na posicao "+parametro_real);
 					logger.add("CPU: cache HIT para valor na posicao "+parametro_real);
+					logger_cache.add("Cache HIT para valor na posicao "+parametro_real);
 					hit = true;
 				}
 			} else {
@@ -646,6 +657,7 @@ public class Cpu implements Runnable {
 		
 		for (int i = 0; i < this.tamanho_da_cache; i++) {
 			if (this.memoria_cache[i] != null && this.memoria_cache[i].pegaIndiceDaRam() == -1) {
+				this.memoria_cache[i] = new Cache();
 				this.memoria_cache[i].add(endereco, valor, null);
 				this.tamanho_ocupado_cache++;
 			}
@@ -657,29 +669,35 @@ public class Cpu implements Runnable {
 	 * Esse elemento pode ser uma instrução inteira ou apenas um unico elemento.
 	 */
 	private void removeElementoDaCache() {
-		// Caso a politica seja FIFO
+		// Caso a politica seja LRU
 		if (this.politica_de_remocao == 1) {
 			int indice_da_ram_para_ser_removido = 0, indice_para_ser_removido = 0;
 
+			int total_count = 0;
+			
 			// Percorre o elemento mais antigo e pega o indiceDaRam dele
 			for(int i = 0; i < this.tamanho_da_cache; i++) {
-				Long temp = this.memoria_cache[i].pegaTimestamp();
-				if (temp < this.memoria_cache[indice_para_ser_removido].pegaTimestamp()) {
-					indice_para_ser_removido = i;
-					indice_da_ram_para_ser_removido = this.memoria_cache[indice_para_ser_removido].pegaIndiceDaRam();
+				if (this.memoria_cache[i] != null) {
+					Long temp = this.memoria_cache[i].pegaTimestamp();
+					if (temp < this.memoria_cache[indice_para_ser_removido].pegaTimestamp()) {
+						indice_para_ser_removido = i;
+						indice_da_ram_para_ser_removido = this.memoria_cache[indice_para_ser_removido].pegaIndiceDaRam();
+					}
 				}
+				total_count = i;
 			}
+			logger_cache.add("Foram verificadas "+total_count+"linhas de "+this.memoria_cache.length);
 			
 			// Remove o(s) elemento(s) mais antigo(os)
 			for (int i = 0; i < this.tamanho_da_cache; i++) {
-				if (this.memoria_cache[i].pegaIndiceDaRam() == indice_da_ram_para_ser_removido) {
+				if (this.memoria_cache[i] != null && this.memoria_cache[i].pegaIndiceDaRam() == indice_da_ram_para_ser_removido) {
 					this.memoria_cache[i].remove();
 					this.tamanho_ocupado_cache -= 1;
 				}
 			}
 		}
 		
-		// Caso a politica seja LRU
+		// Caso a politica seja LFU
 		if (this.politica_de_remocao == 2) {
 			
 		}
@@ -724,12 +742,12 @@ public class Cpu implements Runnable {
 	 */
 	private boolean cacheTemEspaco(int espaco_necessario) {
 		int espaco_real = this.tamanho_da_cache - this.tamanho_ocupado_cache;
-		logger_cache.add("Verifica se tem espaço na cache (precisa de "+espaco_necessario+", tem "+espaco_real+")");
+		logger_cache.add("Verifica se tem espaço na cache (precisa de "+espaco_necessario+", foram ocupados "+this.tamanho_ocupado_cache+" de "+this.tamanho_da_cache+")");
 		if (espaco_necessario <= espaco_real) {
-			logger_cache.add("Tem espaço na cache (precisa de "+espaco_necessario+", tem "+espaco_real+")");
+			logger_cache.add("Tem espaço na cache (precisa de "+espaco_necessario+", foram ocupados "+this.tamanho_ocupado_cache+" de "+this.tamanho_da_cache+")");
 			return true;
 		}
-		logger_cache.add("Não tem espaco na cache (precisa de "+espaco_necessario+", tem "+espaco_real+")");
+		logger_cache.add("Não tem espaco na cache (precisa de "+espaco_necessario+", foram ocupados "+this.tamanho_ocupado_cache+" de "+this.tamanho_da_cache+")");
 		return false;
 	}
 

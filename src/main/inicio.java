@@ -25,7 +25,7 @@ public class inicio {
 
 		int cacheTamanho = (int)((cachePct * tamanho) / 100);
 		
-		System.out.print("\nQual politica deseja utilizar?\n1 -> FIFO\n2 -> LRU\n3 -> LFU\n -> ");
+		System.out.print("\nQual politica deseja utilizar?\n1 -> LRU\n2 -> LFU\n3 -> COOLDOWN\n -> ");
 		politica = scanner.nextInt();
 		
 		System.out.println("\n\n\n");

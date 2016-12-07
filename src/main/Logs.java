@@ -8,8 +8,8 @@ import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 
 public class Logs {
-//	private String local_do_log = "C:\\Sistemas\\EmuladorJava\\src\\main\\logs.txt";
-	private String local_do_log = "C:\\Users\\Airton\\workspace\\Emulador\\src\\main\\";
+	private String local_do_log = "C:\\sistemas\\EmuladorJava\\src\\main\\";
+//	private String local_do_log = "C:\\Users\\Airton\\workspace\\Emulador\\src\\main\\";
 	
 	public Logs(String nome_arquivo) {
 		// Deleta arquivo, caso exista
